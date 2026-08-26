@@ -6005,7 +6005,7 @@ MonoBehaviour:
   targetImage: {fileID: 0}
   aspectRatioFitter: {fileID: 0}
   flipVertically: 0
-  verboseLogging: 1
+  verboseLogging: 0
 --- !u!114 &205167075
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21074,6 +21074,7 @@ GameObject:
   - component: {fileID: 594024182}
   - component: {fileID: 594024184}
   - component: {fileID: 594024183}
+  - component: {fileID: 594024185}
   m_Layer: 0
   m_Name: Header
   m_TagString: Untagged
@@ -21138,6 +21139,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 594024181}
   m_CullTransparentMesh: 1
+--- !u!114 &594024185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 594024181}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6c778df70dcd61492634331a1b7064, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereGraphicBender
+  hudWindow: {fileID: 1131982168}
+  subdivisions: 5
+  surfaceOffsetTowardUser: 0
 --- !u!64 &597622304
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -31198,6 +31214,7 @@ GameObject:
   - component: {fileID: 789877998}
   - component: {fileID: 789877997}
   - component: {fileID: 789877996}
+  - component: {fileID: 789877999}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -31324,6 +31341,20 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -8}
   m_SizeDelta: {x: -40, y: 54}
   m_Pivot: {x: 0.5, y: 1}
+--- !u!114 &789877999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 789877995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1760986284}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &790200511
 GameObject:
   m_ObjectHideFlags: 0
@@ -35193,6 +35224,7 @@ GameObject:
   - component: {fileID: 859857586}
   - component: {fileID: 859857588}
   - component: {fileID: 859857587}
+  - component: {fileID: 859857589}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -35319,6 +35351,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 859857585}
   m_CullTransparentMesh: 1
+--- !u!114 &859857589
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 859857585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1728653257}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &861276623
 GameObject:
   m_ObjectHideFlags: 0
@@ -35421,6 +35467,7 @@ GameObject:
   - component: {fileID: 864260534}
   - component: {fileID: 864260536}
   - component: {fileID: 864260535}
+  - component: {fileID: 864260537}
   m_Layer: 0
   m_Name: Background
   m_TagString: Untagged
@@ -35485,6 +35532,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 864260533}
   m_CullTransparentMesh: 1
+--- !u!114 &864260537
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 864260533}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6c778df70dcd61492634331a1b7064, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereGraphicBender
+  hudWindow: {fileID: 1920071108}
+  subdivisions: 5
+  surfaceOffsetTowardUser: 0
 --- !u!224 &871263447
 RectTransform:
   m_ObjectHideFlags: 0
@@ -42171,6 +42233,7 @@ GameObject:
   - component: {fileID: 970562395}
   - component: {fileID: 970562397}
   - component: {fileID: 970562396}
+  - component: {fileID: 970562398}
   m_Layer: 0
   m_Name: ContentText
   m_TagString: Untagged
@@ -42306,6 +42369,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 970562394}
   m_CullTransparentMesh: 1
+--- !u!114 &970562398
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 970562394}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1920071108}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &972490212
 GameObject:
   m_ObjectHideFlags: 0
@@ -44865,6 +44942,7 @@ GameObject:
   - component: {fileID: 1088077534}
   - component: {fileID: 1088077536}
   - component: {fileID: 1088077535}
+  - component: {fileID: 1088077537}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -44991,6 +45069,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088077533}
   m_CullTransparentMesh: 1
+--- !u!114 &1088077537
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088077533}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1920071108}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &1092848079
 GameObject:
   m_ObjectHideFlags: 0
@@ -45871,7 +45963,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1131982167
 Transform:
   m_ObjectHideFlags: 0
@@ -51977,7 +52069,7 @@ MonoBehaviour:
   openYawDegrees: 0
   openPitchDegrees: -5
   resetPositionWhenOpened: 1
-  startOpen: 1
+  startOpen: 0
 --- !u!1001 &1229676137
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -61997,6 +62089,7 @@ GameObject:
   - component: {fileID: 1536720291}
   - component: {fileID: 1536720293}
   - component: {fileID: 1536720292}
+  - component: {fileID: 1536720294}
   m_Layer: 0
   m_Name: ContentText
   m_TagString: Untagged
@@ -62132,6 +62225,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1536720290}
   m_CullTransparentMesh: 1
+--- !u!114 &1536720294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1536720290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1131982168}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &1538885847
 GameObject:
   m_ObjectHideFlags: 0
@@ -69573,6 +69680,7 @@ GameObject:
   - component: {fileID: 1634213529}
   - component: {fileID: 1634213531}
   - component: {fileID: 1634213530}
+  - component: {fileID: 1634213532}
   m_Layer: 0
   m_Name: Header
   m_TagString: Untagged
@@ -69637,6 +69745,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1634213528}
   m_CullTransparentMesh: 1
+--- !u!114 &1634213532
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1634213528}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6c778df70dcd61492634331a1b7064, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereGraphicBender
+  hudWindow: {fileID: 1920071108}
+  subdivisions: 5
+  surfaceOffsetTowardUser: 0
 --- !u!222 &1636572265
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -71948,6 +72071,7 @@ GameObject:
   - component: {fileID: 1677700929}
   - component: {fileID: 1677700931}
   - component: {fileID: 1677700930}
+  - component: {fileID: 1677700932}
   m_Layer: 0
   m_Name: Background
   m_TagString: Untagged
@@ -72012,6 +72136,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1677700928}
   m_CullTransparentMesh: 1
+--- !u!114 &1677700932
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1677700928}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6c778df70dcd61492634331a1b7064, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereGraphicBender
+  hudWindow: {fileID: 1131982168}
+  subdivisions: 5
+  surfaceOffsetTowardUser: 0
 --- !u!1 &1679731538
 GameObject:
   m_ObjectHideFlags: 0
@@ -73879,7 +74018,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1728653256
 Transform:
   m_ObjectHideFlags: 0
@@ -75562,7 +75701,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1760986283
 Transform:
   m_ObjectHideFlags: 0
@@ -76078,6 +76217,7 @@ GameObject:
   - component: {fileID: 1770406263}
   - component: {fileID: 1770406265}
   - component: {fileID: 1770406264}
+  - component: {fileID: 1770406266}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -76204,6 +76344,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1770406262}
   m_CullTransparentMesh: 1
+--- !u!114 &1770406266
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1770406262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3842673a6440c20e9085b903b6465b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HudSphereTextBender
+  hudWindow: {fileID: 1131982168}
+  surfaceOffsetTowardUser: 0.001
 --- !u!1 &1777885785
 GameObject:
   m_ObjectHideFlags: 0
@@ -84099,7 +84253,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1920071103
 Transform:
   m_ObjectHideFlags: 0
