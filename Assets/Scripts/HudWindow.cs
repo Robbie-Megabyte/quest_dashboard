@@ -1,6 +1,7 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public class HudWindow : MonoBehaviour
@@ -10,6 +11,13 @@ public class HudWindow : MonoBehaviour
         Free,
         Tiled
     }
+    [Header("Curved Visual Surface")]
+    public bool bendAllWindowGraphics = true;
+
+    [Range(1, 8)]
+    public int graphicBendSubdivisions = 8;
+
+    public float visualSurfaceOffsetTowardUser = 0.0f;
 
     [Header("Identity")]
     public string windowId = "window";
@@ -117,24 +125,19 @@ public class HudWindow : MonoBehaviour
 
 
     void Awake()
-    {
-        ValidateReferences();
+{
+    ValidateReferences();
+    EnsureCurvedVisuals();
 
-        /*
-         * Window roots must remain unscaled.
-         *
-         * Later resize operations change the actual Canvas
-         * dimensions instead of scaling this object.
-         */
-        transform.localScale =
-            Vector3.one;
+    transform.localScale =
+        Vector3.one;
 
-        SetTitle(
-            windowTitle
-        );
+    SetTitle(
+        windowTitle
+    );
 
-        UpdateWindowGeometry();
-    }
+    UpdateWindowGeometry();
+}
 
 
     private void ValidateReferences()
@@ -171,6 +174,7 @@ public class HudWindow : MonoBehaviour
             );
         }
     }
+
 
 
     public void SetTitle(
@@ -267,74 +271,128 @@ public class HudWindow : MonoBehaviour
         );
     }
 
+    public void RefreshCurvedVisuals()
+    {
+        EnsureCurvedVisuals();
+    }
+
+
+    private void EnsureCurvedVisuals()
+    {
+        if (!bendAllWindowGraphics)
+            return;
+
+        Graphic[] graphics =
+            GetComponentsInChildren<Graphic>(true);
+
+        foreach (Graphic childGraphic in graphics)
+        {
+            if (childGraphic == null)
+                continue;
+
+            TextMeshProUGUI text =
+                childGraphic as TextMeshProUGUI;
+
+            if (text != null)
+            {
+                HudSphereTextBender textBender =
+                    text.GetComponent<HudSphereTextBender>();
+
+                if (textBender == null)
+                {
+                    textBender =
+                        text.gameObject.AddComponent
+                        <HudSphereTextBender>();
+                }
+
+                textBender.hudWindow =
+                    this;
+
+                textBender.surfaceOffsetTowardUser =
+                    visualSurfaceOffsetTowardUser;
+
+                text.SetVerticesDirty();
+                continue;
+            }
+            // Transparent graphics are interaction surfaces, not visible curved content.
+            if (childGraphic.color.a <= 0.001f)
+            {
+                continue;
+            }
+
+            HudSphereGraphicBender graphicBender =
+                childGraphic.GetComponent
+                <HudSphereGraphicBender>();
+
+            if (graphicBender == null)
+            {
+                graphicBender =
+                    childGraphic.gameObject.AddComponent
+                    <HudSphereGraphicBender>();
+            }
+
+            graphicBender.hudWindow =
+                this;
+
+            graphicBender.subdivisions =
+                graphicBendSubdivisions;
+
+            graphicBender.surfaceOffsetTowardUser =
+                visualSurfaceOffsetTowardUser;
+
+            childGraphic.SetVerticesDirty();
+        }
+    }
+
 
     /*
-     * Keeps the invisible header grab collider aligned
-     * with the visible header when the window changes size.
-     */
-    public void UpdateWindowGeometry()
+ * Keeps the window grab collider aligned with the complete
+ * physical window surface.
+ */
+public void UpdateWindowGeometry()
+{
+    if (windowCanvas == null ||
+        grabHandle == null ||
+        grabHandleCollider == null)
     {
-        if (windowCanvas == null ||
-            grabHandle == null ||
-            grabHandleCollider == null)
-        {
-            return;
-        }
-
-        float width =
-            WidthMeters;
-
-        float height =
-            HeightMeters;
-
-        if (width <= 0.0f ||
-            height <= 0.0f)
-        {
-            return;
-        }
-
-        /*
-         * Header occupies the physical top edge.
-         */
-        Vector3 handlePosition =
-            grabHandle.localPosition;
-
-        handlePosition.x =
-            0.0f;
-
-        handlePosition.y =
-            height * 0.5f -
-            headerHeightMeters * 0.5f;
-
-        grabHandle.localPosition =
-            handlePosition;
-
-
-        /*
-         * Leave the right portion clear for future
-         * HUD / World / Close buttons.
-         */
-        float usableGrabWidth =
-            Mathf.Max(
-                0.04f,
-                width -
-                reservedRightHeaderMeters
-            );
-
-        grabHandleCollider.center =
-            new Vector3(
-                -reservedRightHeaderMeters * 0.5f,
-                0.0f,
-                0.0f
-            );
-
-        grabHandleCollider.size =
-            new Vector3(
-                usableGrabWidth,
-                headerHeightMeters,
-                grabColliderDepthMeters
-            );
+        return;
     }
+
+    float width =
+        WidthMeters;
+
+    float height =
+        HeightMeters;
+
+    if (width <= 0.0f ||
+        height <= 0.0f)
+    {
+        return;
+    }
+
+    /*
+     * Place the proven GrabHandle at the center of the
+     * complete window instead of only over the header.
+     */
+    Vector3 handlePosition =
+        grabHandle.localPosition;
+
+    handlePosition.x = 0.0f;
+    handlePosition.y = 0.0f;
+
+    grabHandle.localPosition =
+        handlePosition;
+
+    grabHandleCollider.center =
+        Vector3.zero;
+
+    grabHandleCollider.size =
+        new Vector3(
+            width,
+            height,
+            grabColliderDepthMeters
+        );
+}
 
 
     /*

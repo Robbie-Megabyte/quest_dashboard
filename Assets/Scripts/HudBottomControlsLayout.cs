@@ -10,63 +10,57 @@ public class HudBottomControlsLayout : MonoBehaviour
     [SerializeField]
     private Transform modeButton;
 
+    [SerializeField]
+    private Transform viewControlsButton;
 
     [Header("Layout")]
     [Tooltip("Physical width of each bottom button.")]
     public float buttonWidthMeters = 0.110f;
 
-    [Tooltip("Empty space between MENU and EDIT.")]
+    [Tooltip("Empty space between adjacent buttons.")]
     public float spacingMeters = 0.020f;
 
     public float localY = 0.0f;
     public float localZ = 0.0f;
 
-
-    private bool initialized = false;
+    private bool initialized;
     private bool lastMenuActive;
     private bool lastModeActive;
+    private bool lastViewControlsActive;
 
-
-    // ========================================================
-    // UNITY
-    // ========================================================
-
-    void Awake()
+    private void Awake()
     {
         RebindReferences();
         ApplyLayout();
     }
 
-
-    void OnEnable()
+    private void OnEnable()
     {
         RebindReferences();
         ApplyLayout();
     }
 
-
-    void LateUpdate()
+    private void LateUpdate()
     {
         bool menuActive =
-            menuButton != null &&
-            menuButton.gameObject.activeSelf;
-
+            IsActive(menuButton);
 
         bool modeActive =
-            modeButton != null &&
-            modeButton.gameObject.activeSelf;
+            IsActive(modeButton);
 
+        bool viewControlsActive =
+            IsActive(viewControlsButton);
 
         if (!initialized ||
             menuActive != lastMenuActive ||
-            modeActive != lastModeActive)
+            modeActive != lastModeActive ||
+            viewControlsActive != lastViewControlsActive)
         {
             ApplyLayout();
         }
     }
 
-
-    void OnValidate()
+    private void OnValidate()
     {
         RebindReferences();
 
@@ -76,111 +70,89 @@ public class HudBottomControlsLayout : MonoBehaviour
         }
     }
 
-
-    // ========================================================
-    // REFERENCES
-    // ========================================================
-
     [ContextMenu("Rebind References")]
     public void RebindReferences()
     {
-        Transform found;
-
-
-        found =
+        menuButton =
             transform.Find("MenuButton");
 
-        menuButton =
-            found;
-
-
-        found =
+        modeButton =
             transform.Find("ModeButton");
 
-        modeButton =
-            found;
+        viewControlsButton =
+            transform.Find("ViewControlsButton");
     }
-
-
-    // ========================================================
-    // LAYOUT
-    // ========================================================
 
     [ContextMenu("Apply Layout")]
     public void ApplyLayout()
     {
         RebindReferences();
 
-
-        bool menuActive =
-            menuButton != null &&
-            menuButton.gameObject.activeSelf;
-
-
-        bool modeActive =
-            modeButton != null &&
-            modeButton.gameObject.activeSelf;
-
-
-        if (menuActive &&
-            modeActive)
+        Transform[] buttons =
         {
-            float halfCenterDistance =
-                (
-                    buttonWidthMeters +
-                    spacingMeters
-                ) *
-                0.5f;
+            menuButton,
+            modeButton,
+            viewControlsButton
+        };
 
+        int activeCount = 0;
 
-            SetButtonPose(
-                menuButton,
-                -halfCenterDistance
-            );
-
-
-            SetButtonPose(
-                modeButton,
-                halfCenterDistance
-            );
-        }
-        else if (menuActive)
+        foreach (Transform button in buttons)
         {
-            SetButtonPose(
-                menuButton,
-                0.0f
-            );
-        }
-        else if (modeActive)
-        {
-            SetButtonPose(
-                modeButton,
-                0.0f
-            );
+            if (IsActive(button))
+            {
+                activeCount++;
+            }
         }
 
+        float step =
+            buttonWidthMeters +
+            spacingMeters;
+
+        float firstX =
+            -0.5f *
+            (activeCount - 1) *
+            step;
+
+        int activeIndex = 0;
+
+        foreach (Transform button in buttons)
+        {
+            if (!IsActive(button))
+                continue;
+
+            SetButtonPose(
+                button,
+                firstX + activeIndex * step
+            );
+
+            activeIndex++;
+        }
 
         lastMenuActive =
-            menuActive;
-
+            IsActive(menuButton);
 
         lastModeActive =
-            modeActive;
+            IsActive(modeButton);
 
+        lastViewControlsActive =
+            IsActive(viewControlsButton);
 
-        initialized =
-            true;
+        initialized = true;
     }
 
+    private static bool IsActive(
+        Transform button)
+    {
+        return
+            button != null &&
+            button.gameObject.activeSelf;
+    }
 
     private void SetButtonPose(
         Transform button,
         float localX)
     {
-        if (button == null)
-            return;
-
-
         button.localPosition =
             new Vector3(
                 localX,
@@ -188,10 +160,8 @@ public class HudBottomControlsLayout : MonoBehaviour
                 localZ
             );
 
-
         button.localRotation =
             Quaternion.identity;
-
 
         button.localScale =
             Vector3.one;

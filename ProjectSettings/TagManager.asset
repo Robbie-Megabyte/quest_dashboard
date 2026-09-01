@@ -36,7 +36,7 @@ TagManager:
   - 
   - 
   - 
-  - 
+  - SlamRenderOnly
   - 
   m_SortingLayers:
   - name: Default

@@ -111,14 +111,8 @@ public class HudGridVisualizer : MonoBehaviour
 
 
             case PreviewMode.Resize:
-
-                /*
-                 * During resize we deliberately show the
-                 * complete grid but no move-placement outline.
-                 */
-                HidePreview();
-
-                break;
+                UpdateResizePreview();
+            break;
         }
     }
 
@@ -272,7 +266,7 @@ public class HudGridVisualizer : MonoBehaviour
         );
 
 
-        HidePreview();
+        UpdateResizePreview();
     }
 
 
@@ -579,6 +573,22 @@ public class HudGridVisualizer : MonoBehaviour
             false;
     }
 
+    private void UpdateResizePreview()
+    {
+        if (activeWindow == null || !activeWindow.IsGridPlaced)
+        {
+            HidePreview();
+            return;
+        }
+
+        DrawPreviewRectangle(
+            activeWindow.CurrentColumn,
+            activeWindow.CurrentRow,
+            activeWindow.ColumnSpan,
+            activeWindow.RowSpan
+        );
+    }
+
 
     private void UpdateMoveDropPreview()
     {
@@ -880,19 +890,16 @@ public class HudGridVisualizer : MonoBehaviour
     // ========================================================
 
     private void HideEverything()
-    {
-        activeWindow =
-            null;
+{
+    activeWindow = null;
+    previewMode = PreviewMode.Hidden;
 
+    HidePreview();
 
-        previewMode =
-            PreviewMode.Hidden;
-
-
-        SetGridVisible(
-            false
-        );
-    }
+    // The visualizer object itself is disabled in Live mode.
+    // While active in Edit mode, the grid remains visible.
+    SetGridVisible(true);
+}
 
 
     private void SetGridVisible(

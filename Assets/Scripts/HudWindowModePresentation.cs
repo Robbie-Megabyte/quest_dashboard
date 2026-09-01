@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 [DisallowMultipleComponent]
 public class HudWindowModePresentation : MonoBehaviour
@@ -23,6 +24,8 @@ public class HudWindowModePresentation : MonoBehaviour
 
 
     [Header("Automatically Resolved")]
+    [SerializeField]
+    private TrackedDeviceGraphicRaycaster windowRaycaster;
 
     [SerializeField]
     private GameObject background;
@@ -44,6 +47,12 @@ public class HudWindowModePresentation : MonoBehaviour
 
     [SerializeField]
     private HudGridWindowController gridController;
+
+    [SerializeField]
+    private G1SlamWindowView slamWindowView;
+
+    [SerializeField]
+    private G1RobotWindowView robotWindowView;
 
 
     [Header("Optional Extra Edit-Only Objects")]
@@ -155,6 +164,15 @@ public class HudWindowModePresentation : MonoBehaviour
 
         gridController =
             GetComponent<HudGridWindowController>();
+
+        slamWindowView =
+        GetComponentInChildren<G1SlamWindowView>(
+            true
+        );
+        robotWindowView =
+        GetComponentInChildren<G1RobotWindowView>(
+            true
+        );
     }
 
 
@@ -171,7 +189,20 @@ public class HudWindowModePresentation : MonoBehaviour
         bool editMode =
             mode ==
             HudModeManager.HudMode.Edit;
+        // ----------------------------------------------------
+        // CANVAS INTERACTION
+        //
+        // In Edit mode, XR rays must pass through the Canvas
+        // graphics and reach the whole-window grab collider.
+        // Close and resize controls use separate XR physics
+        // interactables, so they remain available.
+        // ----------------------------------------------------
 
+        if (windowRaycaster != null)
+        {
+            windowRaycaster.enabled =
+                !editMode;
+        }
 
         // ----------------------------------------------------
         // BACKGROUND
@@ -282,6 +313,26 @@ public class HudWindowModePresentation : MonoBehaviour
                     );
                 }
             }
+        }
+        // ----------------------------------------------------
+        // WINDOW CONTENT INTERACTION
+        //
+        // Edit mode reserves dragging for window placement.
+        // Live mode restores SLAM pan, rotation and zoom.
+        // ----------------------------------------------------
+
+        if (slamWindowView != null)
+        {
+            slamWindowView.SetInteractionEnabled(
+                !editMode
+            );
+        }
+
+        if (robotWindowView != null)
+        {
+            robotWindowView.SetInteractionEnabled(
+                !editMode
+            );
         }
     }
 }

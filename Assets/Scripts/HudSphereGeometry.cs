@@ -64,16 +64,23 @@ public static class HudSphereGeometry
             );
         }
 
+        HudSphereWindowConstraint constraint =
+            window.sphereConstraint;
 
-        Transform root =
-            window.transform;
+        if (constraint == null ||
+            constraint.hudRoot == null)
+        {
+            return new Pose(
+                window.transform.position,
+                window.transform.rotation
+            );
+        }
 
+        Transform hudRoot =
+            constraint.hudRoot;
 
         float radius =
-            GetRadius(
-                window
-            );
-
+            GetRadius(window);
 
         float widthDegrees =
             MetersToDegrees(
@@ -81,92 +88,116 @@ public static class HudSphereGeometry
                 radius
             );
 
-
         float heightDegrees =
             MetersToDegrees(
                 window.HeightMeters,
                 radius
             );
 
-
-        float yawOffset =
-            normalizedX *
-            widthDegrees;
-
-
-        float pitchOffset =
-            normalizedY *
-            heightDegrees;
-
-
-        /*
-         * First walk horizontally across the sphere.
-         */
-        Quaternion yawRotation =
-            Quaternion.AngleAxis(
-                yawOffset,
-                root.up
+        Vector3 sphereCenterLocal =
+            new Vector3(
+                0.0f,
+                0.0f,
+                -radius
             );
 
-
-        Vector3 yawRight =
-            yawRotation *
-            root.right;
-
-
         /*
-         * Positive normalized Y means UP.
-         *
-         * Unity's positive rotation around +X moves +Z
-         * downward, hence the minus sign.
-         */
-        Quaternion pitchRotation =
-            Quaternion.AngleAxis(
-                -pitchOffset,
-                yawRight
+        * Recover the window centre using the same global
+        * yaw/pitch coordinate system as HudGridManager and
+        * HudGridVisualizer.
+        */
+        Vector3 rootLocal =
+            hudRoot.InverseTransformPoint(
+                window.transform.position
             );
 
+        Vector3 centerDirection =
+            rootLocal -
+            sphereCenterLocal;
 
-        Quaternion surfaceRotation =
-            pitchRotation *
-            yawRotation *
-            root.rotation;
+        if (centerDirection.sqrMagnitude < 0.000001f)
+        {
+            centerDirection =
+                Vector3.forward;
+        }
+        else
+        {
+            centerDirection.Normalize();
+        }
 
+        float centerYawDegrees =
+            Mathf.Atan2(
+                centerDirection.x,
+                centerDirection.z
+            ) *
+            Mathf.Rad2Deg;
 
-        Vector3 surfaceNormal =
-            surfaceRotation *
-            Vector3.forward;
+        float centerPitchDegrees =
+            Mathf.Asin(
+                Mathf.Clamp(
+                    centerDirection.y,
+                    -1.0f,
+                    1.0f
+                )
+            ) *
+            Mathf.Rad2Deg;
 
+        float yawDegrees =
+            centerYawDegrees +
+            normalizedX * widthDegrees;
 
-        /*
-         * Window root is on the sphere surface.
-         *
-         * Therefore the sphere center is exactly one radius
-         * behind the root along its outward normal.
-         */
-        Vector3 sphereCenter =
-            root.position -
-            root.forward *
-            radius;
+        float pitchDegrees =
+            centerPitchDegrees +
+            normalizedY * heightDegrees;
 
+        float yawRadians =
+            yawDegrees *
+            Mathf.Deg2Rad;
+
+        float pitchRadians =
+            pitchDegrees *
+            Mathf.Deg2Rad;
+
+        float cosPitch =
+            Mathf.Cos(
+                pitchRadians
+            );
+
+        Vector3 direction =
+            new Vector3(
+                Mathf.Sin(yawRadians) * cosPitch,
+                Mathf.Sin(pitchRadians),
+                Mathf.Cos(yawRadians) * cosPitch
+            ).normalized;
 
         float drawingRadius =
             Mathf.Max(
                 0.01f,
-                radius -
-                towardUserMeters
+                radius - towardUserMeters
             );
 
+        Vector3 surfaceLocalPosition =
+            sphereCenterLocal +
+            direction * drawingRadius;
 
-        Vector3 surfacePosition =
-            sphereCenter +
-            surfaceNormal *
-            drawingRadius;
+        Vector3 surfaceWorldPosition =
+            hudRoot.TransformPoint(
+                surfaceLocalPosition
+            );
 
+        Quaternion surfaceLocalRotation =
+            Quaternion.LookRotation(
+                direction,
+                Vector3.up
+            );
+
+        Quaternion surfaceWorldRotation =
+            hudRoot.rotation *
+            surfaceLocalRotation;
 
         return new Pose(
-            surfacePosition,
-            surfaceRotation
+            surfaceWorldPosition,
+            surfaceWorldRotation
         );
     }
 }

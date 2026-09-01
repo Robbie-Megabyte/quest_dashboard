@@ -14,8 +14,9 @@ public class HudGridResizeHandle : MonoBehaviour
         "corner. This also keeps the TopRight handle away " +
         "from the close button."
     )]
-    public float cornerOutsetNormalized =
-        0.035f;
+    [Min(0.0f)]
+    public float cornerOutsetMeters =
+        0.025f;
 
 
     [Tooltip(
@@ -45,6 +46,12 @@ public class HudGridResizeHandle : MonoBehaviour
     private bool beingDragged =
         false;
 
+    [Header("Live Resize")]
+    [Min(0.01f)]
+    public float liveResizeIntervalSeconds = 0.03f;
+
+    private float nextLiveResizeTime;
+
 
     // ========================================================
     // UNITY
@@ -68,7 +75,38 @@ public class HudGridResizeHandle : MonoBehaviour
         if (!beingDragged)
         {
             UpdateRestingPose();
+            return;
         }
+
+        if (Time.unscaledTime < nextLiveResizeTime)
+        {
+            return;
+        }
+
+        nextLiveResizeTime =
+            Time.unscaledTime + liveResizeIntervalSeconds;
+
+        ApplyLiveResize();
+    }
+
+    private void ApplyLiveResize()
+    {
+        if (gridManager == null || windowController == null)
+        {
+            return;
+        }
+
+        /*
+        * XR Interaction Toolkit has already moved the handle before
+        * LateUpdate runs, so this is the current grabbed position.
+        */
+        Vector3 dragWorldPoint = transform.position;
+
+        gridManager.ResizeWindowFromWorldPoint(
+            windowController,
+            resizeEdge,
+            dragWorldPoint
+        );
     }
 
 
@@ -136,8 +174,8 @@ public class HudGridResizeHandle : MonoBehaviour
         RebindReferences();
 
 
-        beingDragged =
-            true;
+        beingDragged = true;
+        nextLiveResizeTime = 0f;
 
 
         if (gridVisualizer != null &&
@@ -207,12 +245,45 @@ public class HudGridResizeHandle : MonoBehaviour
         }
 
 
-        float outside =
-            0.5f +
-            Mathf.Max(
-                0.0f,
-                cornerOutsetNormalized
+        float radius =
+            HudSphereGeometry.GetRadius(
+                hudWindow
             );
+
+        float widthDegrees =
+            Mathf.Max(
+                0.001f,
+                HudSphereGeometry.MetersToDegrees(
+                    hudWindow.WidthMeters,
+                    radius
+                )
+            );
+
+        float heightDegrees =
+            Mathf.Max(
+                0.001f,
+                HudSphereGeometry.MetersToDegrees(
+                    hudWindow.HeightMeters,
+                    radius
+                )
+            );
+
+        float outsetDegrees =
+            HudSphereGeometry.MetersToDegrees(
+                Mathf.Max(
+                    0.0f,
+                    cornerOutsetMeters
+                ),
+                radius
+            );
+
+        float outsideX =
+            0.5f +
+            outsetDegrees / widthDegrees;
+
+        float outsideY =
+            0.5f +
+            outsetDegrees / heightDegrees;
 
 
         float normalizedX =
@@ -230,46 +301,23 @@ public class HudGridResizeHandle : MonoBehaviour
             // ------------------------------------------------
 
             case HudGridManager.ResizeEdge.TopLeft:
-
-                normalizedX =
-                    -outside;
-
-                normalizedY =
-                    outside;
-
+                normalizedX = -outsideX;
+                normalizedY = outsideY;
                 break;
-
 
             case HudGridManager.ResizeEdge.TopRight:
-
-                normalizedX =
-                    outside;
-
-                normalizedY =
-                    outside;
-
+                normalizedX = outsideX;
+                normalizedY = outsideY;
                 break;
-
 
             case HudGridManager.ResizeEdge.BottomLeft:
-
-                normalizedX =
-                    -outside;
-
-                normalizedY =
-                    -outside;
-
+                normalizedX = -outsideX;
+                normalizedY = -outsideY;
                 break;
 
-
             case HudGridManager.ResizeEdge.BottomRight:
-
-                normalizedX =
-                    outside;
-
-                normalizedY =
-                    -outside;
-
+                normalizedX = outsideX;
+                normalizedY = -outsideY;
                 break;
 
 
@@ -280,46 +328,23 @@ public class HudGridResizeHandle : MonoBehaviour
             // ------------------------------------------------
 
             case HudGridManager.ResizeEdge.Left:
-
-                normalizedX =
-                    -outside;
-
-                normalizedY =
-                    0.0f;
-
+                normalizedX = -outsideX;
+                normalizedY = 0.0f;
                 break;
-
 
             case HudGridManager.ResizeEdge.Right:
-
-                normalizedX =
-                    outside;
-
-                normalizedY =
-                    0.0f;
-
+                normalizedX = outsideX;
+                normalizedY = 0.0f;
                 break;
-
 
             case HudGridManager.ResizeEdge.Top:
-
-                normalizedX =
-                    0.0f;
-
-                normalizedY =
-                    outside;
-
+                normalizedX = 0.0f;
+                normalizedY = outsideY;
                 break;
 
-
             case HudGridManager.ResizeEdge.Bottom:
-
-                normalizedX =
-                    0.0f;
-
-                normalizedY =
-                    -outside;
-
+                normalizedX = 0.0f;
+                normalizedY = -outsideY;
                 break;
         }
 
