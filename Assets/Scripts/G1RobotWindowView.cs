@@ -198,7 +198,7 @@ public sealed class G1RobotWindowView :
             rotationSensitivity;
 
         pitch = Mathf.Clamp(
-            pitch -
+            pitch +
             eventData.delta.y *
             rotationSensitivity,
             minimumPitch,
@@ -298,33 +298,62 @@ public sealed class G1RobotWindowView :
 
         lastViewportSize = size;
 
+        /*
+        * The RenderTexture must retain exactly the same aspect
+        * ratio as the RawImage. Otherwise Unity stretches the
+        * rendered robot when the window becomes narrow or wide.
+        */
         float aspect =
-            Mathf.Max(0.1f, size.x / size.y);
+            Mathf.Clamp(
+                size.x / size.y,
+                0.1f,
+                10f
+            );
+
+        /*
+        * Use the longest texture dimension as the fixed resolution.
+        * The shorter dimension is calculated from the aspect ratio.
+        *
+        * This keeps the ratio intact instead of independently
+        * clamping width and height.
+        */
+        int longestSide =
+            Mathf.Clamp(
+                baseTextureResolution,
+                256,
+                1536
+            );
 
         int width;
         int height;
 
         if (aspect >= 1f)
         {
-            height = baseTextureResolution;
-            width = Mathf.RoundToInt(
-                baseTextureResolution * aspect
+            width = longestSide;
+
+            height = Mathf.Max(
+                64,
+                Mathf.RoundToInt(
+                    width / aspect
+                )
             );
         }
         else
         {
-            width = baseTextureResolution;
-            height = Mathf.RoundToInt(
-                baseTextureResolution / aspect
+            height = longestSide;
+
+            width = Mathf.Max(
+                64,
+                Mathf.RoundToInt(
+                    height * aspect
+                )
             );
         }
-
-        width = Mathf.Clamp(width, 256, 1536);
-        height = Mathf.Clamp(height, 256, 1536);
 
         if (renderTexture != null)
         {
             renderCamera.targetTexture = null;
+
             renderTexture.Release();
             Destroy(renderTexture);
         }
@@ -345,6 +374,10 @@ public sealed class G1RobotWindowView :
         renderCamera.targetTexture =
             renderTexture;
 
+        /*
+        * Use the final integer texture dimensions so the camera
+        * projection precisely matches the generated texture.
+        */
         renderCamera.aspect =
             width / (float)height;
 

@@ -37,6 +37,9 @@ public class HudModeManager : MonoBehaviour
     [SerializeField]
     private GameObject menuButtonRoot;
 
+    [SerializeField]
+    private GameObject presetsButtonRoot;
+
 
     [SerializeField]
     private GameObject modeButtonRoot;
@@ -52,6 +55,7 @@ public class HudModeManager : MonoBehaviour
 
     [SerializeField]
     private TMP_Text modeButtonLabel;
+
 
 
     // ========================================================
@@ -184,11 +188,23 @@ public class HudModeManager : MonoBehaviour
             hudRoot.Find(
                 "HUD_BottomControls/MenuButton"
             );
+        
+        if (found != null)
+        {
+            menuButtonRoot =
+                found.gameObject;
+        }
+
+        found =
+            hudRoot.Find(
+                "HUD_BottomControls/PresetsButton"
+            );
+        
 
 
         if (found != null)
         {
-            menuButtonRoot =
+            presetsButtonRoot =
                 found.gameObject;
         }
 
@@ -302,12 +318,10 @@ public class HudModeManager : MonoBehaviour
             );
         }
 
-
-        // ----------------------------------------------------
-        // MODE TOGGLE MUST ALWAYS EXIST.
-        //
-        // Otherwise there would be no way to leave Live Mode.
-        // ----------------------------------------------------
+        if (presetsButtonRoot != null)
+        {
+            presetsButtonRoot.SetActive(editMode);
+        }
 
         if (modeButtonRoot != null)
         {
@@ -315,7 +329,6 @@ public class HudModeManager : MonoBehaviour
                 true
             );
         }
-
 
         // ----------------------------------------------------
         // GRID VISUALIZER

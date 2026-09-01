@@ -1,30 +1,23 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class HudBottomControlsLayout : MonoBehaviour
+public sealed class HudBottomControlsLayout : MonoBehaviour
 {
-    [Header("Automatically Resolved")]
-    [SerializeField]
-    private Transform menuButton;
-
-    [SerializeField]
-    private Transform modeButton;
-
-    [SerializeField]
-    private Transform viewControlsButton;
+    [Header("Buttons")]
+    [SerializeField] private GameObject menuButton;
+    [SerializeField] private GameObject presetsButton;
+    [SerializeField] private GameObject modeButton;
+    [SerializeField] private GameObject viewControlsButton;
 
     [Header("Layout")]
-    [Tooltip("Physical width of each bottom button.")]
-    public float buttonWidthMeters = 0.110f;
+    [Min(0.01f)]
+    [SerializeField] private float buttonWidth = 0.110f;
 
-    [Tooltip("Empty space between adjacent buttons.")]
-    public float spacingMeters = 0.020f;
+    [Min(0f)]
+    [SerializeField] private float spacing = 0.020f;
 
-    public float localY = 0.0f;
-    public float localZ = 0.0f;
-
-    private bool initialized;
     private bool lastMenuActive;
+    private bool lastPresetsActive;
     private bool lastModeActive;
     private bool lastViewControlsActive;
 
@@ -42,128 +35,110 @@ public class HudBottomControlsLayout : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool menuActive =
-            IsActive(menuButton);
+        bool menuActive = IsActive(menuButton);
+        bool presetsActive = IsActive(presetsButton);
+        bool modeActive = IsActive(modeButton);
+        bool viewControlsActive = IsActive(viewControlsButton);
 
-        bool modeActive =
-            IsActive(modeButton);
-
-        bool viewControlsActive =
-            IsActive(viewControlsButton);
-
-        if (!initialized ||
-            menuActive != lastMenuActive ||
-            modeActive != lastModeActive ||
-            viewControlsActive != lastViewControlsActive)
+        if (menuActive == lastMenuActive &&
+            presetsActive == lastPresetsActive &&
+            modeActive == lastModeActive &&
+            viewControlsActive == lastViewControlsActive)
         {
-            ApplyLayout();
+            return;
         }
+
+        ApplyLayout();
     }
 
-    private void OnValidate()
-    {
-        RebindReferences();
-
-        if (!Application.isPlaying)
-        {
-            ApplyLayout();
-        }
-    }
-
-    [ContextMenu("Rebind References")]
-    public void RebindReferences()
-    {
-        menuButton =
-            transform.Find("MenuButton");
-
-        modeButton =
-            transform.Find("ModeButton");
-
-        viewControlsButton =
-            transform.Find("ViewControlsButton");
-    }
-
-    [ContextMenu("Apply Layout")]
     public void ApplyLayout()
     {
         RebindReferences();
 
-        Transform[] buttons =
+        GameObject[] orderedButtons =
         {
             menuButton,
+            presetsButton,
             modeButton,
             viewControlsButton
         };
 
         int activeCount = 0;
 
-        foreach (Transform button in buttons)
+        for (int i = 0; i < orderedButtons.Length; i++)
         {
-            if (IsActive(button))
-            {
+            if (IsActive(orderedButtons[i]))
                 activeCount++;
+        }
+
+        if (activeCount > 0)
+        {
+            float step = buttonWidth + spacing;
+            float firstX = -0.5f * step * (activeCount - 1);
+            int visibleIndex = 0;
+
+            for (int i = 0; i < orderedButtons.Length; i++)
+            {
+                GameObject button = orderedButtons[i];
+
+                if (!IsActive(button))
+                    continue;
+
+                Transform buttonTransform = button.transform;
+                Vector3 localPosition = buttonTransform.localPosition;
+
+                localPosition.x = firstX + visibleIndex * step;
+                buttonTransform.localPosition = localPosition;
+
+                visibleIndex++;
             }
         }
 
-        float step =
-            buttonWidthMeters +
-            spacingMeters;
+        lastMenuActive = IsActive(menuButton);
+        lastPresetsActive = IsActive(presetsButton);
+        lastModeActive = IsActive(modeButton);
+        lastViewControlsActive = IsActive(viewControlsButton);
+    }
 
-        float firstX =
-            -0.5f *
-            (activeCount - 1) *
-            step;
+    private void RebindReferences()
+    {
+        Transform root = transform;
 
-        int activeIndex = 0;
-
-        foreach (Transform button in buttons)
+        if (menuButton == null)
         {
-            if (!IsActive(button))
-                continue;
+            Transform found = root.Find("MenuButton");
 
-            SetButtonPose(
-                button,
-                firstX + activeIndex * step
-            );
-
-            activeIndex++;
+            if (found != null)
+                menuButton = found.gameObject;
         }
 
-        lastMenuActive =
-            IsActive(menuButton);
+        if (presetsButton == null)
+        {
+            Transform found = root.Find("PresetsButton");
 
-        lastModeActive =
-            IsActive(modeButton);
+            if (found != null)
+                presetsButton = found.gameObject;
+        }
 
-        lastViewControlsActive =
-            IsActive(viewControlsButton);
+        if (modeButton == null)
+        {
+            Transform found = root.Find("ModeButton");
 
-        initialized = true;
+            if (found != null)
+                modeButton = found.gameObject;
+        }
+
+        if (viewControlsButton == null)
+        {
+            Transform found = root.Find("ViewControlsButton");
+
+            if (found != null)
+                viewControlsButton = found.gameObject;
+        }
     }
 
-    private static bool IsActive(
-        Transform button)
+    private static bool IsActive(GameObject target)
     {
-        return
-            button != null &&
-            button.gameObject.activeSelf;
-    }
-
-    private void SetButtonPose(
-        Transform button,
-        float localX)
-    {
-        button.localPosition =
-            new Vector3(
-                localX,
-                localY,
-                localZ
-            );
-
-        button.localRotation =
-            Quaternion.identity;
-
-        button.localScale =
-            Vector3.one;
+        return target != null && target.activeSelf;
     }
 }

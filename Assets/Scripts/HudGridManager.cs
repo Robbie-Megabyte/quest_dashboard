@@ -1809,6 +1809,69 @@ public class HudGridManager : MonoBehaviour
     // SINGLE WINDOW PLACEMENT
     // ========================================================
 
+    public bool TryPlaceWindowExact(
+        HudGridWindowController window,
+        int column,
+        int row,
+        int columnSpan,
+        int rowSpan)
+    {
+        if (window == null)
+            return false;
+
+        /*
+        * Exact placement must reject invalid values instead of
+        * silently clamping them. Preset validation depends on
+        * exact coordinates being preserved.
+        */
+        if (
+            column < 0 ||
+            row < 0 ||
+            columnSpan < 1 ||
+            rowSpan < 1 ||
+            column + columnSpan > columns ||
+            row + rowSpan > rows
+        )
+        {
+            Debug.LogError(
+                $"HUD GRID: invalid exact placement for " +
+                $"{window.name}: column={column}, row={row}, " +
+                $"span={columnSpan}x{rowSpan}"
+            );
+
+            return false;
+        }
+
+        bool wasAlreadyRegistered =
+            registeredWindows.Contains(window);
+
+        if (!wasAlreadyRegistered)
+        {
+            registeredWindows.Add(window);
+        }
+
+        bool placed =
+            PlaceWindow(
+                window,
+                column,
+                row,
+                columnSpan,
+                rowSpan
+            );
+
+        /*
+        * Do not leave a newly introduced window registered when
+        * its requested preset position could not be occupied.
+        */
+        if (!placed &&
+            !wasAlreadyRegistered)
+        {
+            registeredWindows.Remove(window);
+        }
+
+        return placed;
+    }
+
     private bool PlaceWindow(
         HudGridWindowController window,
         int column,
