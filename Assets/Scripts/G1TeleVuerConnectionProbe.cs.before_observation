@@ -1,0 +1,428 @@
+using System;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using TMPro;
+using UnityEngine;
+
+[DisallowMultipleComponent]
+public sealed class G1TeleVuerConnectionProbe : MonoBehaviour
+{
+    [Header("Unity TeleVuer ingress")]
+    [SerializeField]
+    private string serverUrl = "ws://192.168.0.116:8013/";
+
+    [SerializeField]
+    private string keyResourcePath =
+        "LocalSecrets/g1_unity_televuer_key";
+
+    [SerializeField]
+    private bool connectOnEnable = true;
+
+    [SerializeField, Min(0.5f)]
+    private float reconnectDelaySeconds = 2f;
+
+    [Header("Optional UI")]
+    [SerializeField]
+    private TMP_Text statusText;
+
+    private CancellationTokenSource lifetime;
+    private ClientWebSocket socket;
+    private Task runner;
+    private byte[] preSharedKey;
+
+    private volatile string connectionStatus = "STOPPED";
+    private string lastLoggedStatus;
+
+    [Serializable]
+    private sealed class ChallengeMessage
+    {
+        public string type;
+        public int version;
+        public string nonce;
+        public long server_unix_ms;
+    }
+
+    [Serializable]
+    private sealed class AuthenticationMessage
+    {
+        public string type = "authenticate";
+        public int version = 1;
+        public string nonce;
+        public string mac;
+    }
+
+    [Serializable]
+    private sealed class HelloAck
+    {
+        public string type;
+        public int version;
+        public long server_unix_ms;
+        public string session;
+        public bool motion_enabled;
+    }
+
+    private void Awake()
+    {
+        TextAsset keyAsset =
+            Resources.Load<TextAsset>(keyResourcePath);
+
+        if (keyAsset == null)
+        {
+            throw new InvalidOperationException(
+                "Missing TeleVuer key resource: " +
+                keyResourcePath);
+        }
+
+        preSharedKey = ParseHexKey(keyAsset.text);
+    }
+
+    private void OnEnable()
+    {
+        if (connectOnEnable)
+            StartProbe();
+    }
+
+    private void OnDisable()
+    {
+        StopProbe();
+    }
+
+    private void OnApplicationQuit()
+    {
+        StopProbe();
+    }
+
+    private void Update()
+    {
+        string current = connectionStatus;
+
+        if (statusText != null)
+            statusText.text = current;
+
+        if (current != lastLoggedStatus)
+        {
+            lastLoggedStatus = current;
+            Debug.Log(
+                "[G1 TeleVuer Probe] " + current,
+                this);
+        }
+    }
+
+    public void StartProbe()
+    {
+        if (runner != null && !runner.IsCompleted)
+            return;
+
+        lifetime = new CancellationTokenSource();
+        runner = RunConnectionLoop(lifetime.Token);
+    }
+
+    public void StopProbe()
+    {
+        connectionStatus = "STOPPED";
+
+        if (lifetime != null &&
+            !lifetime.IsCancellationRequested)
+        {
+            lifetime.Cancel();
+        }
+
+        ClientWebSocket active = socket;
+
+        if (active != null)
+        {
+            try
+            {
+                active.Abort();
+            }
+            catch
+            {
+                // It may already be closed.
+            }
+        }
+
+        socket = null;
+    }
+
+    private async Task RunConnectionLoop(
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                connectionStatus = "CONNECTING";
+
+                using (var client = new ClientWebSocket())
+                {
+                    socket = client;
+                    client.Options.KeepAliveInterval =
+                        TimeSpan.FromSeconds(5);
+
+                    await client.ConnectAsync(
+                        new Uri(serverUrl),
+                        cancellationToken);
+
+                    connectionStatus = "SOCKET CONNECTED";
+
+                    string challengeJson =
+                        await ReceiveTextMessage(
+                            client,
+                            cancellationToken);
+
+                    if (string.IsNullOrEmpty(challengeJson))
+                    {
+                        throw new InvalidOperationException(
+                            "Server closed before sending challenge");
+                    }
+
+                    ChallengeMessage challenge =
+                        JsonUtility.FromJson<ChallengeMessage>(
+                            challengeJson);
+
+                    if (challenge == null ||
+                        challenge.type != "challenge" ||
+                        challenge.version != 1 ||
+                        string.IsNullOrEmpty(challenge.nonce))
+                    {
+                        throw new InvalidOperationException(
+                            "Invalid server challenge: " +
+                            challengeJson);
+                    }
+
+                    string authenticationJson =
+                        CreateAuthenticationMessage(
+                            challenge.nonce);
+
+                    byte[] authenticationBytes =
+                        Encoding.UTF8.GetBytes(
+                            authenticationJson);
+
+                    await client.SendAsync(
+                        new ArraySegment<byte>(
+                            authenticationBytes),
+                        WebSocketMessageType.Text,
+                        true,
+                        cancellationToken);
+
+                    string response =
+                        await ReceiveTextMessage(
+                            client,
+                            cancellationToken);
+
+                    if (string.IsNullOrEmpty(response))
+                    {
+                        throw new InvalidOperationException(
+                            "Server closed before authentication");
+                    }
+
+                    HelloAck ack =
+                        JsonUtility.FromJson<HelloAck>(response);
+
+                    if (ack == null ||
+                        ack.type != "hello_ack" ||
+                        ack.version != 1)
+                    {
+                        throw new InvalidOperationException(
+                            "Invalid authentication response: " +
+                            response);
+                    }
+
+                    connectionStatus =
+                        ack.motion_enabled
+                            ? "AUTHENTICATED • MOTION ENABLED"
+                            : "AUTHENTICATED • PROBE ONLY";
+
+                    await ReceiveUntilClosed(
+                        client,
+                        cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                connectionStatus =
+                    "ERROR: " +
+                    DescribeException(exception);
+            }
+            finally
+            {
+                socket = null;
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            try
+            {
+                await Task.Delay(
+                    TimeSpan.FromSeconds(
+                        reconnectDelaySeconds),
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private string CreateAuthenticationMessage(
+        string nonce)
+    {
+        byte[] signed = Encoding.ASCII.GetBytes(
+            "G1TV1|AUTH|" +
+            nonce);
+
+        byte[] digest;
+
+        using (HMACSHA256 hmac =
+               new HMACSHA256(preSharedKey))
+        {
+            digest = hmac.ComputeHash(signed);
+        }
+
+        var authentication =
+            new AuthenticationMessage
+            {
+                nonce = nonce,
+                mac = ToLowerHex(digest)
+            };
+
+        return JsonUtility.ToJson(authentication);
+    }
+
+    private static async Task<string> ReceiveTextMessage(
+        ClientWebSocket client,
+        CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[4096];
+        var text = new StringBuilder();
+        WebSocketReceiveResult result;
+
+        do
+        {
+            result = await client.ReceiveAsync(
+                new ArraySegment<byte>(buffer),
+                cancellationToken);
+
+            if (result.MessageType ==
+                WebSocketMessageType.Close)
+            {
+                return null;
+            }
+
+            if (result.MessageType !=
+                WebSocketMessageType.Text)
+            {
+                throw new InvalidOperationException(
+                    "Expected a text response");
+            }
+
+            text.Append(
+                Encoding.UTF8.GetString(
+                    buffer,
+                    0,
+                    result.Count));
+
+            if (text.Length > 4096)
+            {
+                throw new InvalidOperationException(
+                    "Authentication response is too large");
+            }
+        }
+        while (!result.EndOfMessage);
+
+        return text.ToString();
+    }
+
+    private static async Task ReceiveUntilClosed(
+        ClientWebSocket client,
+        CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[1024];
+
+        while (
+            client.State == WebSocketState.Open &&
+            !cancellationToken.IsCancellationRequested)
+        {
+            WebSocketReceiveResult result =
+                await client.ReceiveAsync(
+                    new ArraySegment<byte>(buffer),
+                    cancellationToken);
+
+            if (result.MessageType ==
+                WebSocketMessageType.Close)
+            {
+                return;
+            }
+        }
+    }
+
+    private static byte[] ParseHexKey(string value)
+    {
+        string normalized =
+            (value ?? string.Empty).Trim();
+
+        if (normalized.Length < 64 ||
+            normalized.Length % 2 != 0)
+        {
+            throw new InvalidOperationException(
+                "The Unity TeleVuer key is invalid");
+        }
+
+        byte[] result =
+            new byte[normalized.Length / 2];
+
+        for (int index = 0;
+             index < result.Length;
+             ++index)
+        {
+            result[index] = Convert.ToByte(
+                normalized.Substring(index * 2, 2),
+                16);
+        }
+
+        return result;
+    }
+
+    private static string ToLowerHex(byte[] bytes)
+    {
+        var output =
+            new StringBuilder(bytes.Length * 2);
+
+        foreach (byte value in bytes)
+            output.Append(value.ToString("x2"));
+
+        return output.ToString();
+    }
+
+    private static string DescribeException(
+        Exception exception)
+    {
+        var output = new StringBuilder();
+        Exception current = exception;
+        int depth = 0;
+
+        while (current != null && depth < 4)
+        {
+            if (depth > 0)
+                output.Append(" -> ");
+
+            output.Append(current.GetType().Name);
+            output.Append(": ");
+            output.Append(current.Message);
+
+            current = current.InnerException;
+            depth++;
+        }
+
+        return output.ToString();
+    }
+}
