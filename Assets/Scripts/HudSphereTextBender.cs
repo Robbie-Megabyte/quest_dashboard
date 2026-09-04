@@ -17,6 +17,12 @@ public sealed class HudSphereTextBender : MonoBehaviour
     private float lastWindowWidth = -1f;
     private float lastWindowHeight = -1f;
     private Vector2 lastRectSize;
+
+    private Vector3 lastRectOriginInWindow;
+    private Vector3 lastRectRightInWindow;
+    private Vector3 lastRectUpInWindow;
+
+    private bool hasCachedTransform;
     private bool refreshNextFrame;
 
     private void Awake()
@@ -50,11 +56,50 @@ public sealed class HudSphereTextBender : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (textComponent == null || hudWindow == null)
+        if (textComponent == null ||
+            hudWindow == null)
+        {
             return;
+        }
+
+        RectTransform rect =
+            textComponent.rectTransform;
 
         Vector2 rectSize =
-            textComponent.rectTransform.rect.size;
+            rect.rect.size;
+
+        Vector3 rectOriginInWindow =
+            hudWindow.transform.InverseTransformPoint(
+                rect.position);
+
+        Vector3 rectRightInWindow =
+            hudWindow.transform.InverseTransformVector(
+                rect.TransformVector(Vector3.right));
+
+        Vector3 rectUpInWindow =
+            hudWindow.transform.InverseTransformVector(
+                rect.TransformVector(Vector3.up));
+
+        const float transformEpsilonSquared =
+            0.0000000001f;
+
+        bool transformChanged =
+            !hasCachedTransform ||
+            (
+                rectOriginInWindow -
+                lastRectOriginInWindow
+            ).sqrMagnitude >
+            transformEpsilonSquared ||
+            (
+                rectRightInWindow -
+                lastRectRightInWindow
+            ).sqrMagnitude >
+            transformEpsilonSquared ||
+            (
+                rectUpInWindow -
+                lastRectUpInWindow
+            ).sqrMagnitude >
+            transformEpsilonSquared;
 
         bool changed =
             !Mathf.Approximately(
@@ -63,7 +108,8 @@ public sealed class HudSphereTextBender : MonoBehaviour
             !Mathf.Approximately(
                 lastWindowHeight,
                 hudWindow.HeightMeters) ||
-            rectSize != lastRectSize;
+            rectSize != lastRectSize ||
+            transformChanged;
 
         if (changed)
         {
@@ -105,17 +151,42 @@ public sealed class HudSphereTextBender : MonoBehaviour
 
     private void CacheGeometry()
     {
+        hasCachedTransform = false;
+
         if (hudWindow != null)
         {
-            lastWindowWidth = hudWindow.WidthMeters;
-            lastWindowHeight = hudWindow.HeightMeters;
+            lastWindowWidth =
+                hudWindow.WidthMeters;
+
+            lastWindowHeight =
+                hudWindow.HeightMeters;
         }
 
-        if (textComponent != null)
-        {
-            lastRectSize =
-                textComponent.rectTransform.rect.size;
-        }
+        if (textComponent == null)
+            return;
+
+        RectTransform rect =
+            textComponent.rectTransform;
+
+        lastRectSize =
+            rect.rect.size;
+
+        if (hudWindow == null)
+            return;
+
+        lastRectOriginInWindow =
+            hudWindow.transform.InverseTransformPoint(
+                rect.position);
+
+        lastRectRightInWindow =
+            hudWindow.transform.InverseTransformVector(
+                rect.TransformVector(Vector3.right));
+
+        lastRectUpInWindow =
+            hudWindow.transform.InverseTransformVector(
+                rect.TransformVector(Vector3.up));
+
+        hasCachedTransform = true;
     }
 
     private void MarkDirty()

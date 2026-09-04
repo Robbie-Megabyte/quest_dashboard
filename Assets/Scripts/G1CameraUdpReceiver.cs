@@ -12,7 +12,7 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
     private const int HeaderSize = 20;
     private const byte ProtocolVersion = 1;
 
-    // Bits 0..6 are camera views. Bit 15 independently asks the
+    // Bits 0..7 are camera views. Bit 15 independently asks the
     // robot to enable its single shared YOLO inference pipeline.
     private const ushort YoloControlBit = 0x8000;
 
@@ -26,6 +26,10 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
 
     [SerializeField]
     private int controlPort = 5057;
+
+    [Tooltip("External LifeCam subscription-control port.")]
+    [SerializeField]
+    private int externalCameraControlPort = 5058;
 
     [Header("UDP Receiver")]
     [SerializeField]
@@ -57,6 +61,9 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
 
     public event Action<G1CameraView, Texture2D>
         ViewTextureUpdated;
+
+    public event Action<byte[]>
+        PointCloudPayloadUpdated;
 
     public event Action<bool>
         YoloRequestChanged;
@@ -100,7 +107,8 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
     private Socket controlSocket;
     private Thread receiveThread;
 
-    private IPEndPoint robotControlEndpoint;
+    private IPEndPoint[] robotControlEndpoints =
+        Array.Empty<IPEndPoint>();
 
     private volatile bool stopping;
 
@@ -201,22 +209,33 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
              viewId < G1CameraViewInfo.Count;
              viewId++)
         {
-            byte[] jpeg = null;
+            byte[] payload = null;
 
             lock (frameLock)
             {
                 if (latestJpegs[viewId] != null)
                 {
-                    jpeg = latestJpegs[viewId];
+                    payload = latestJpegs[viewId];
                     latestJpegs[viewId] = null;
                 }
             }
 
-            if (jpeg != null)
+            if (payload == null)
+                continue;
+
+            G1CameraView view =
+                (G1CameraView)viewId;
+
+            if (view == G1CameraView.PointCloud)
+            {
+                DeliverLatestPointCloud(
+                    payload);
+            }
+            else
             {
                 DecodeLatestJpeg(
-                    (G1CameraView)viewId,
-                    jpeg);
+                    view,
+                    payload);
             }
         }
 
@@ -362,7 +381,10 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
         if (listenPort < 1 ||
             listenPort > 65535 ||
             controlPort < 1 ||
-            controlPort > 65535)
+            controlPort > 65535 ||
+            externalCameraControlPort < 1 ||
+            externalCameraControlPort > 65535 ||
+            externalCameraControlPort == controlPort)
         {
             Debug.LogError(
                 "[G1 Camera UDP] Invalid UDP port.");
@@ -425,10 +447,16 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
                 SocketType.Dgram,
                 ProtocolType.Udp);
 
-            robotControlEndpoint =
-                new IPEndPoint(
-                    robotAddress,
-                    controlPort);
+            robotControlEndpoints =
+                new[]
+                {
+                    new IPEndPoint(
+                        robotAddress,
+                        controlPort),
+                    new IPEndPoint(
+                        robotAddress,
+                        externalCameraControlPort)
+                };
 
             stopping = false;
 
@@ -451,8 +479,9 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
 
             Debug.Log(
                 $"[G1 Camera UDP] Listening on " +
-                $"0.0.0.0:{listenPort}; robot control=" +
-                $"{robotIp}:{controlPort}");
+                $"0.0.0.0:{listenPort}; robot controls=" +
+                $"{robotIp}:{controlPort}," +
+                $"{robotIp}:{externalCameraControlPort}");
         }
         catch (Exception exception)
         {
@@ -469,7 +498,8 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
             receiveSocket = null;
             controlSocket = null;
             receiveThread = null;
-            robotControlEndpoint = null;
+            robotControlEndpoints =
+                Array.Empty<IPEndPoint>();
 
             Debug.LogError(
                 "[G1 Camera UDP] Failed to start: " +
@@ -490,7 +520,8 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
 
         receiveSocket = null;
         controlSocket = null;
-        robotControlEndpoint = null;
+        robotControlEndpoints =
+            Array.Empty<IPEndPoint>();
 
         try
         {
@@ -518,11 +549,12 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
         bool includeYoloRequest = true)
     {
         Socket socket = controlSocket;
-        IPEndPoint endpoint =
-            robotControlEndpoint;
+        IPEndPoint[] endpoints =
+            robotControlEndpoints;
 
         if (socket == null ||
-            endpoint == null)
+            endpoints == null ||
+            endpoints.Length == 0)
         {
             return;
         }
@@ -553,23 +585,28 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
             (byte)((controlMask >> 8) & 0xFF)
         };
 
-        try
+        foreach (IPEndPoint endpoint in endpoints)
         {
-            socket.SendTo(
-                packet,
-                endpoint);
-        }
-        catch (Exception exception)
-        {
-            if (Time.unscaledTime >=
-                nextControlWarningTime)
+            try
             {
-                nextControlWarningTime =
-                    Time.unscaledTime + 2f;
+                socket.SendTo(
+                    packet,
+                    endpoint);
+            }
+            catch (Exception exception)
+            {
+                if (Time.unscaledTime >=
+                    nextControlWarningTime)
+                {
+                    nextControlWarningTime =
+                        Time.unscaledTime + 2f;
 
-                Debug.LogWarning(
-                    "[G1 Camera UDP] Subscription heartbeat failed: " +
-                    exception.Message);
+                    Debug.LogWarning(
+                        "[G1 Camera UDP] Subscription " +
+                        "heartbeat failed for " +
+                        endpoint + ": " +
+                        exception.Message);
+                }
             }
         }
     }
@@ -873,6 +910,29 @@ public sealed class G1CameraUdpReceiver : MonoBehaviour
             Interlocked.Increment(
                 ref incompleteFrames);
         }
+    }
+
+    private void DeliverLatestPointCloud(
+        byte[] payload)
+    {
+        if (payload == null ||
+            payload.Length < 32 ||
+            payload[0] != (byte)'G' ||
+            payload[1] != (byte)'1' ||
+            payload[2] != (byte)'P' ||
+            payload[3] != (byte)'C')
+        {
+            Debug.LogWarning(
+                "[G1 Camera UDP] Invalid point-cloud payload.");
+            return;
+        }
+
+        Interlocked.Increment(
+            ref decodedFrames[
+                (int)G1CameraView.PointCloud]);
+
+        PointCloudPayloadUpdated?.Invoke(
+            payload);
     }
 
     private void DecodeLatestJpeg(

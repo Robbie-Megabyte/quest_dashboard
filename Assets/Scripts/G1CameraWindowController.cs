@@ -4,27 +4,46 @@ using UnityEngine;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
-public sealed class G1CameraWindowController : MonoBehaviour
+public sealed class G1CameraWindowController :
+    MonoBehaviour
 {
     [Header("Automatically Resolved")]
-    [SerializeField] private RectTransform windowCanvas;
-    [SerializeField] private RawImage originalCameraFeed;
-    [SerializeField] private G1CameraUdpReceiver receiver;
+    [SerializeField]
+    private RectTransform windowCanvas;
 
-    [Header("Layout")]
-    [SerializeField] private float toggleBarTop = 74f;
-    [SerializeField] private float toggleBarHeight = 64f;
-    [SerializeField] private float viewAreaTop = 148f;
-    [SerializeField] private float toggleBarToViewGap = 16f;
-    [SerializeField] private float outerMargin = 12f;
-    [SerializeField] private float viewGap = 8f;
+    [SerializeField]
+    private RawImage originalCameraFeed;
+
+    [SerializeField]
+    private G1CameraUdpReceiver receiver;
+
+    [Header("Main View")]
+    [SerializeField]
+    private float mainViewTop = 74f;
+
+    [Header("Hotbar")]
+    [SerializeField]
+    private float hotbarHeight = 104f;
+
+    [SerializeField]
+    private float hotbarBottom = 12f;
+
+    [SerializeField]
+    private float mainToHotbarGap = 10f;
+
+    [SerializeField]
+    private float outerMargin = 12f;
+
+    [SerializeField]
+    private float thumbnailGap = 7f;
 
     private sealed class ViewUi
     {
         public G1CameraView View;
-        public Toggle Toggle;
-        public RectTransform Tile;
-        public RawImage Image;
+        public RawImage MainImage;
+        public RawImage ThumbnailImage;
+        public Toggle Selector;
+        public G1CameraPointCloudView PointCloudView;
     }
 
     private static readonly G1CameraView[] ViewOrder =
@@ -32,28 +51,23 @@ public sealed class G1CameraWindowController : MonoBehaviour
         G1CameraView.Rgb,
         G1CameraView.Depth,
         G1CameraView.Overlay,
-        G1CameraView.Near,
         G1CameraView.Disparity,
         G1CameraView.PointCloud,
-        G1CameraView.TopDown
+        G1CameraView.LifeCam
     };
 
-    private static readonly string[] ButtonLabels =
-    {
-        "RGB",
-        "DEPTH",
-        "OVERLAY",
-        "NEAR",
-        "DISP",
-        "POINT",
-        "TOP"
-    };
+    private readonly List<ViewUi> views =
+        new List<ViewUi>();
 
-    private readonly List<ViewUi> views = new List<ViewUi>();
-
-    private RectTransform viewArea;
-    private TMP_FontAsset fontAsset;
+    private RectTransform mainViewport;
+    private RectTransform hotbar;
+    private ToggleGroup cameraToggleGroup;
     private Toggle yoloToggle;
+    private TMP_FontAsset fontAsset;
+
+    private G1CameraView selectedMainView =
+        G1CameraView.Rgb;
+
     private bool built;
     private bool subscribed;
 
@@ -68,7 +82,8 @@ public sealed class G1CameraWindowController : MonoBehaviour
         ResolveReferences();
         BuildInterface();
         Subscribe();
-        ApplySelection();
+        SelectMainView(selectedMainView);
+        RequestAllViews();
     }
 
     private void OnDisable()
@@ -77,6 +92,12 @@ public sealed class G1CameraWindowController : MonoBehaviour
             receiver.RemoveConsumer(this);
 
         Unsubscribe();
+
+        foreach (ViewUi view in views)
+        {
+            if (view.PointCloudView != null)
+                view.PointCloudView.SetMainView(false);
+        }
     }
 
     private void OnDestroy()
@@ -87,11 +108,42 @@ public sealed class G1CameraWindowController : MonoBehaviour
         Unsubscribe();
     }
 
+    private void Update()
+    {
+        /*
+         * Point Cloud is rendered locally into a RenderTexture.
+         * Keep its hotbar thumbnail attached if that texture is
+         * recreated when switching between thumbnail/main quality.
+         */
+        foreach (ViewUi view in views)
+        {
+            if (view.PointCloudView == null ||
+                view.ThumbnailImage == null)
+            {
+                continue;
+            }
+
+            Texture output =
+                view.PointCloudView.OutputTexture;
+
+            if (output != null &&
+                view.ThumbnailImage.texture != output)
+            {
+                view.ThumbnailImage.texture = output;
+
+                ApplyAspectFillCrop(
+                    view.ThumbnailImage,
+                    output);
+            }
+        }
+    }
+
     private void ResolveReferences()
     {
         if (windowCanvas == null)
         {
-            Transform found = transform.Find("WindowCanvas");
+            Transform found =
+                transform.Find("WindowCanvas");
 
             if (found != null)
                 windowCanvas = found as RectTransform;
@@ -104,8 +156,10 @@ public sealed class G1CameraWindowController : MonoBehaviour
                 windowCanvas.Find("CameraFeed");
 
             if (found != null)
+            {
                 originalCameraFeed =
                     found.GetComponent<RawImage>();
+            }
         }
 
         if (receiver == null)
@@ -147,104 +201,146 @@ public sealed class G1CameraWindowController : MonoBehaviour
             return;
         }
 
-        float effectiveToggleBarHeight =
-            Mathf.Max(
-                64f,
-                toggleBarHeight);
+        mainViewport = CreateRectWithBackground(
+            "CameraMainViewport_Runtime",
+            windowCanvas,
+            new Color(0f, 0f, 0f, 0.92f),
+            true);
 
-        float effectiveViewAreaTop =
-            Mathf.Max(
-                viewAreaTop,
-                toggleBarTop +
-                effectiveToggleBarHeight +
-                Mathf.Max(0f, toggleBarToViewGap));
+        mainViewport.anchorMin = Vector2.zero;
+        mainViewport.anchorMax = Vector2.one;
 
-        viewArea = CreateRect(
-            "CameraViewArea_Runtime",
-            windowCanvas);
+        mainViewport.offsetMin =
+            new Vector2(
+                outerMargin,
+                hotbarBottom +
+                hotbarHeight +
+                mainToHotbarGap);
 
-        viewArea.anchorMin = Vector2.zero;
-        viewArea.anchorMax = Vector2.one;
-        viewArea.offsetMin =
-            new Vector2(outerMargin, outerMargin);
-        viewArea.offsetMax =
+        mainViewport.offsetMax =
             new Vector2(
                 -outerMargin,
-                -effectiveViewAreaTop);
+                -mainViewTop);
 
-        RectTransform toggleBar = CreateRect(
-            "CameraToggleBar_Runtime",
+        hotbar = CreateRect(
+            "CameraHotbar_Runtime",
             windowCanvas);
 
-        toggleBar.anchorMin = new Vector2(0f, 1f);
-        toggleBar.anchorMax = new Vector2(1f, 1f);
-        toggleBar.pivot = new Vector2(0.5f, 1f);
-        toggleBar.anchoredPosition =
-            new Vector2(0f, -toggleBarTop);
-        toggleBar.sizeDelta =
+        hotbar.anchorMin =
+            new Vector2(0f, 0f);
+
+        hotbar.anchorMax =
+            new Vector2(1f, 0f);
+
+        hotbar.pivot =
+            new Vector2(0.5f, 0f);
+
+        hotbar.anchoredPosition =
+            new Vector2(0f, hotbarBottom);
+
+        hotbar.sizeDelta =
             new Vector2(
                 -2f * outerMargin,
-                effectiveToggleBarHeight);
+                hotbarHeight);
 
         HorizontalLayoutGroup layout =
-            toggleBar.gameObject.AddComponent
+            hotbar.gameObject.AddComponent
                 <HorizontalLayoutGroup>();
 
-        layout.padding = new RectOffset(2, 2, 2, 2);
-        layout.spacing = 4f;
-        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.padding =
+            new RectOffset(0, 0, 0, 0);
+
+        layout.spacing = thumbnailGap;
+
+        layout.childAlignment =
+            TextAnchor.MiddleCenter;
+
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = true;
 
-        for (int i = 0; i < ViewOrder.Length; i++)
+        cameraToggleGroup =
+            hotbar.gameObject.AddComponent
+                <ToggleGroup>();
+
+        cameraToggleGroup.allowSwitchOff = false;
+
+        for (int index = 0;
+             index < ViewOrder.Length;
+             index++)
         {
-            G1CameraView view = ViewOrder[i];
+            G1CameraView view = ViewOrder[index];
 
-            RectTransform tile =
-                CreateTile(view);
-
-            RawImage image;
+            RawImage mainImage;
 
             if (view == G1CameraView.Rgb)
             {
-                image = originalCameraFeed;
-                image.transform.SetParent(tile, false);
+                mainImage = originalCameraFeed;
+
+                mainImage.transform.SetParent(
+                    mainViewport,
+                    false);
             }
             else
             {
-                image = CreateRawImage(
-                    "Image_" + view,
-                    tile);
+                mainImage = CreateRawImage(
+                    "Main_" + view,
+                    mainViewport);
             }
 
-            ConfigureImage(image);
+            ConfigureImage(mainImage);
 
-            Toggle toggle =
-                CreateToggle(
-                    ButtonLabels[i],
-                    toggleBar);
+            G1CameraPointCloudView pointCloudView =
+                null;
 
-            toggle.SetIsOnWithoutNotify(
-                view == G1CameraView.Rgb);
+            if (view == G1CameraView.PointCloud)
+            {
+                pointCloudView =
+                    mainImage.gameObject.AddComponent
+                        <G1CameraPointCloudView>();
 
-            toggle.onValueChanged.AddListener(
-                _ => ApplySelection());
+                pointCloudView.Configure(
+                    receiver,
+                    GetComponentInParent
+                        <HudWindow>(true));
+            }
+
+            CreateThumbnailSelector(
+                view,
+                out Toggle selector,
+                out RawImage thumbnailImage);
+
+            selector.group = cameraToggleGroup;
+
+            selector.SetIsOnWithoutNotify(
+                view == selectedMainView);
+
+            G1CameraView capturedView = view;
+
+            selector.onValueChanged.AddListener(
+                enabled =>
+                {
+                    if (enabled)
+                    {
+                        SelectMainView(
+                            capturedView);
+                    }
+                });
 
             views.Add(
                 new ViewUi
                 {
                     View = view,
-                    Toggle = toggle,
-                    Tile = tile,
-                    Image = image
+                    MainImage = mainImage,
+                    ThumbnailImage = thumbnailImage,
+                    Selector = selector,
+                    PointCloudView = pointCloudView
                 });
         }
 
-        yoloToggle = CreateToggle(
-            "YOLO",
-            toggleBar);
+        yoloToggle =
+            CreateYoloToggle(hotbar);
 
         yoloToggle.SetIsOnWithoutNotify(
             receiver != null &&
@@ -254,11 +350,10 @@ public sealed class G1CameraWindowController : MonoBehaviour
             HandleYoloToggleChanged);
 
         built = true;
-        LayoutSelectedViews();
 
-        // The camera controls and view tiles are generated at runtime,
-        // after HudWindow may already have scanned its original graphics.
-        // Enrol them in the exact same spherical surface as the window.
+        SelectMainView(
+            selectedMainView);
+
         Canvas.ForceUpdateCanvases();
 
         HudWindow hudWindow =
@@ -268,144 +363,192 @@ public sealed class G1CameraWindowController : MonoBehaviour
             hudWindow.RefreshCurvedVisuals();
     }
 
-    private RectTransform CreateTile(
-        G1CameraView view)
+    private void CreateThumbnailSelector(
+        G1CameraView view,
+        out Toggle toggle,
+        out RawImage thumbnail)
     {
-        GameObject tileObject = new GameObject(
-            "Tile_" + view,
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image),
-            typeof(RectMask2D));
+        GameObject targetObject =
+            new GameObject(
+                "CameraHotbar_" + view,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Toggle),
+                typeof(LayoutElement));
 
-        tileObject.transform.SetParent(viewArea, false);
+        targetObject.transform.SetParent(
+            hotbar,
+            false);
 
-        Image background =
-            tileObject.GetComponent<Image>();
-
-        background.color =
-            new Color(0f, 0f, 0f, 0.85f);
-        background.raycastTarget = false;
-
-        return tileObject.GetComponent<RectTransform>();
-    }
-
-    private static RawImage CreateRawImage(
-        string objectName,
-        Transform parent)
-    {
-        GameObject imageObject = new GameObject(
-            objectName,
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(RawImage));
-
-        imageObject.transform.SetParent(parent, false);
-
-        return imageObject.GetComponent<RawImage>();
-    }
-
-    private static void ConfigureImage(
-    RawImage image)
-    {
-        /*
-        * The image mesh must remain exactly inside its tile.
-        *
-        * AspectRatioFitter.EnvelopeParent expands the mesh beyond
-        * the tile. A flat RectMask2D cannot correctly clip that
-        * expanded mesh after HudSphereGraphicBender curves it.
-        */
-        AspectRatioFitter oldAspect =
-            image.GetComponent<AspectRatioFitter>();
-
-        if (oldAspect != null)
-            oldAspect.enabled = false;
-
-        RectTransform rect =
-            image.rectTransform;
-
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = Vector2.zero;
-        rect.localScale = Vector3.one;
-        rect.localRotation = Quaternion.identity;
-
-        image.color = Color.white;
-        image.raycastTarget = false;
-        image.uvRect =
-            new Rect(0f, 0f, 1f, 1f);
-    }
-
-    private Toggle CreateToggle(
-        string labelText,
-        Transform parent)
-    {
-        GameObject targetObject = new GameObject(
-            "CameraToggleTarget_" + labelText,
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image),
-            typeof(Toggle),
-            typeof(LayoutElement));
-
-        targetObject.transform.SetParent(parent, false);
-
-        Image hitTarget =
+        Image targetImage =
             targetObject.GetComponent<Image>();
 
-        hitTarget.color =
-            new Color(0f, 0f, 0f, 0.01f);
-        hitTarget.raycastTarget = true;
+        targetImage.color = Color.clear;
+        targetImage.raycastTarget = false;
 
         LayoutElement element =
-            targetObject.GetComponent<LayoutElement>();
+            targetObject.GetComponent
+                <LayoutElement>();
 
-        // The transparent outer Toggle is intentionally larger
-        // than its visible button, giving hand rays/pokes a forgiving
-        // snap target without visually crowding adjacent controls.
-        element.minWidth = 64f;
-        element.preferredWidth = 86f;
-        element.minHeight = 56f;
-        element.preferredHeight = 60f;
+        element.minWidth = 58f;
+        element.preferredWidth = 92f;
+        element.flexibleWidth = 1f;
+        element.minHeight = 72f;
+        element.preferredHeight = hotbarHeight;
+        element.flexibleHeight = 1f;
 
-        RectTransform visual = CreateRect(
-            "Visual",
-            targetObject.transform);
+        RectTransform visual =
+            CreateRectWithBackground(
+                "Visual",
+                targetObject.transform,
+                new Color(
+                    0.035f,
+                    0.055f,
+                    0.075f,
+                    1f),
+                false);
 
         visual.anchorMin = Vector2.zero;
         visual.anchorMax = Vector2.one;
-        visual.offsetMin = new Vector2(4f, 6f);
-        visual.offsetMax = new Vector2(-4f, -6f);
+        visual.offsetMin = new Vector2(2f, 2f);
+        visual.offsetMax = new Vector2(-2f, -2f);
 
-        Image background =
-            visual.gameObject.AddComponent<Image>();
-
-        background.color =
-            new Color(0.08f, 0.10f, 0.13f, 0.96f);
-        background.raycastTarget = false;
-
-        RectTransform checkmark = CreateRect(
-            "Selected",
+        thumbnail = CreateRawImage(
+            "LivePreview",
             visual);
 
-        checkmark.anchorMin = Vector2.zero;
-        checkmark.anchorMax = Vector2.one;
-        checkmark.offsetMin = new Vector2(2f, 2f);
-        checkmark.offsetMax = new Vector2(-2f, -2f);
+        ConfigureImage(thumbnail);
+
+        thumbnail.rectTransform.offsetMin =
+            new Vector2(3f, 3f);
+
+        thumbnail.rectTransform.offsetMax =
+            new Vector2(-3f, -3f);
+
+        RectTransform selectedRect =
+            CreateRect(
+                "Selected",
+                visual);
+
+        selectedRect.anchorMin = Vector2.zero;
+        selectedRect.anchorMax = Vector2.one;
+        selectedRect.offsetMin = Vector2.zero;
+        selectedRect.offsetMax = Vector2.zero;
 
         Image selectedImage =
-            checkmark.gameObject.AddComponent<Image>();
+            selectedRect.gameObject.AddComponent
+                <Image>();
 
         selectedImage.color =
-            new Color(0f, 0.65f, 1f, 0.75f);
+            new Color(
+                0f,
+                0.68f,
+                1f,
+                0.28f);
+
         selectedImage.raycastTarget = false;
 
-        RectTransform labelRect = CreateRect(
-            "Label",
-            visual);
+        toggle =
+            targetObject.GetComponent<Toggle>();
+
+        toggle.targetGraphic =
+            visual.GetComponent<Image>();
+
+        toggle.graphic = selectedImage;
+
+        ColorBlock colors = toggle.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor =
+            new Color(0.82f, 0.94f, 1f, 1f);
+        colors.pressedColor =
+            new Color(0.45f, 0.78f, 1f, 1f);
+        colors.selectedColor = Color.white;
+        toggle.colors = colors;
+
+        HudCurvedToggleHitTarget hitTarget =
+            targetObject.AddComponent
+                <HudCurvedToggleHitTarget>();
+
+        hitTarget.Configure(
+            GetComponentInParent
+                <HudWindow>(true),
+            toggle);
+    }
+
+    private Toggle CreateYoloToggle(
+        Transform parent)
+    {
+        GameObject targetObject =
+            new GameObject(
+                "CameraHotbar_YOLO",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Toggle),
+                typeof(LayoutElement));
+
+        targetObject.transform.SetParent(
+            parent,
+            false);
+
+        Image targetImage =
+            targetObject.GetComponent<Image>();
+
+        targetImage.color = Color.clear;
+        targetImage.raycastTarget = false;
+
+        LayoutElement element =
+            targetObject.GetComponent
+                <LayoutElement>();
+
+        element.minWidth = 66f;
+        element.preferredWidth = 74f;
+        element.flexibleWidth = 0f;
+        element.minHeight = 72f;
+        element.preferredHeight = hotbarHeight;
+
+        RectTransform visual =
+            CreateRectWithBackground(
+                "Visual",
+                targetObject.transform,
+                new Color(
+                    0.055f,
+                    0.075f,
+                    0.095f,
+                    1f),
+                false);
+
+        visual.anchorMin = Vector2.zero;
+        visual.anchorMax = Vector2.one;
+        visual.offsetMin = new Vector2(2f, 2f);
+        visual.offsetMax = new Vector2(-2f, -2f);
+
+        RectTransform selectedRect =
+            CreateRect(
+                "Selected",
+                visual);
+
+        selectedRect.anchorMin = Vector2.zero;
+        selectedRect.anchorMax = Vector2.one;
+        selectedRect.offsetMin = Vector2.zero;
+        selectedRect.offsetMax = Vector2.zero;
+
+        Image selectedImage =
+            selectedRect.gameObject.AddComponent
+                <Image>();
+
+        selectedImage.color =
+            new Color(
+                0f,
+                0.68f,
+                1f,
+                0.30f);
+
+        selectedImage.raycastTarget = false;
+
+        RectTransform labelRect =
+            CreateRect("Label", visual);
 
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -416,15 +559,13 @@ public sealed class G1CameraWindowController : MonoBehaviour
             labelRect.gameObject.AddComponent
                 <TextMeshProUGUI>();
 
-        label.text = labelText;
-        label.fontSize = 18f;
+        label.text = "YOLO";
+        label.fontSize = 15f;
         label.fontStyle = FontStyles.Bold;
         label.alignment =
             TextAlignmentOptions.Center;
         label.color = Color.white;
         label.raycastTarget = false;
-        label.overflowMode =
-            TextOverflowModes.Ellipsis;
         label.textWrappingMode =
             TextWrappingModes.NoWrap;
 
@@ -434,32 +575,114 @@ public sealed class G1CameraWindowController : MonoBehaviour
         Toggle toggle =
             targetObject.GetComponent<Toggle>();
 
-        toggle.targetGraphic = background;
+        toggle.targetGraphic =
+            visual.GetComponent<Image>();
+
         toggle.graphic = selectedImage;
 
         ColorBlock colors = toggle.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor =
-            new Color(0.80f, 0.92f, 1f, 1f);
+            new Color(0.82f, 0.94f, 1f, 1f);
         colors.pressedColor =
-            new Color(0.45f, 0.75f, 1f, 1f);
+            new Color(0.45f, 0.78f, 1f, 1f);
         colors.selectedColor = Color.white;
         toggle.colors = colors;
+
+        HudCurvedToggleHitTarget hitTarget =
+            targetObject.AddComponent
+                <HudCurvedToggleHitTarget>();
+
+        hitTarget.Configure(
+            GetComponentInParent
+                <HudWindow>(true),
+            toggle);
 
         return toggle;
     }
 
-    private static RectTransform CreateRect(
-        string objectName,
-        Transform parent)
+    private void SelectMainView(
+        G1CameraView selected)
     {
-        GameObject obj = new GameObject(
-            objectName,
-            typeof(RectTransform));
+        selectedMainView = selected;
 
-        obj.transform.SetParent(parent, false);
+        foreach (ViewUi view in views)
+        {
+            bool isSelected =
+                view.View == selected;
 
-        return obj.GetComponent<RectTransform>();
+            if (view.Selector != null)
+            {
+                view.Selector.SetIsOnWithoutNotify(
+                    isSelected);
+            }
+
+            if (view.MainImage != null)
+            {
+                view.MainImage.enabled =
+                    isSelected;
+
+                if (view.PointCloudView == null)
+                {
+                    view.MainImage.raycastTarget =
+                        false;
+                }
+            }
+
+            if (view.PointCloudView != null)
+            {
+                view.PointCloudView.SetMainView(
+                    isSelected);
+            }
+
+            if (receiver != null &&
+                view.View !=
+                    G1CameraView.PointCloud)
+            {
+                Texture2D texture =
+                    receiver.GetTexture(view.View);
+
+                if (texture != null)
+                    ApplyTexture(view, texture);
+            }
+        }
+
+        Canvas.ForceUpdateCanvases();
+
+        foreach (ViewUi view in views)
+        {
+            if (view.MainImage != null &&
+                view.MainImage.texture != null)
+            {
+                ApplyAspectFillCrop(
+                    view.MainImage,
+                    view.MainImage.texture);
+            }
+
+            if (view.ThumbnailImage != null &&
+                view.ThumbnailImage.texture != null)
+            {
+                ApplyAspectFillCrop(
+                    view.ThumbnailImage,
+                    view.ThumbnailImage.texture);
+            }
+        }
+    }
+
+    private void RequestAllViews()
+    {
+        if (!isActiveAndEnabled ||
+            receiver == null)
+        {
+            return;
+        }
+
+        ushort mask = 0;
+
+        foreach (G1CameraView view in ViewOrder)
+            mask |= G1CameraViewInfo.Bit(view);
+
+        receiver.SetConsumerMask(this, mask);
     }
 
     private void Subscribe()
@@ -472,8 +695,20 @@ public sealed class G1CameraWindowController : MonoBehaviour
         if (receiver == null)
         {
             Debug.LogError(
-                "[G1 Camera Window] Global receiver missing.");
+                "[G1 Camera Window] " +
+                "Global receiver missing.");
             return;
+        }
+
+        foreach (ViewUi view in views)
+        {
+            if (view.PointCloudView != null)
+            {
+                view.PointCloudView.Configure(
+                    receiver,
+                    GetComponentInParent
+                        <HudWindow>(true));
+            }
         }
 
         receiver.ViewTextureUpdated +=
@@ -493,8 +728,11 @@ public sealed class G1CameraWindowController : MonoBehaviour
 
     private void Unsubscribe()
     {
-        if (!subscribed || receiver == null)
+        if (!subscribed ||
+            receiver == null)
+        {
             return;
+        }
 
         receiver.ViewTextureUpdated -=
             HandleTextureUpdated;
@@ -503,6 +741,46 @@ public sealed class G1CameraWindowController : MonoBehaviour
             HandleYoloRequestChanged;
 
         subscribed = false;
+    }
+
+    private void HandleTextureUpdated(
+        G1CameraView view,
+        Texture2D texture)
+    {
+        foreach (ViewUi candidate in views)
+        {
+            if (candidate.View != view)
+                continue;
+
+            ApplyTexture(candidate, texture);
+            return;
+        }
+    }
+
+    private void ApplyTexture(
+        ViewUi view,
+        Texture texture)
+    {
+        if (texture == null)
+            return;
+
+        if (view.MainImage != null)
+        {
+            view.MainImage.texture = texture;
+
+            ApplyAspectFillCrop(
+                view.MainImage,
+                texture);
+        }
+
+        if (view.ThumbnailImage != null)
+        {
+            view.ThumbnailImage.texture = texture;
+
+            ApplyAspectFillCrop(
+                view.ThumbnailImage,
+                texture);
+        }
     }
 
     private void HandleYoloToggleChanged(
@@ -528,139 +806,88 @@ public sealed class G1CameraWindowController : MonoBehaviour
         }
     }
 
-    private void ApplySelection()
+    private static RectTransform
+        CreateRectWithBackground(
+            string objectName,
+            Transform parent,
+            Color color,
+            bool addMask)
     {
-        if (!built)
-            return;
+        GameObject obj =
+            new GameObject(
+                objectName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
 
-        ushort mask = 0;
+        obj.transform.SetParent(parent, false);
 
-        foreach (ViewUi view in views)
-        {
-            bool selected =
-                view.Toggle != null &&
-                view.Toggle.isOn;
+        Image image = obj.GetComponent<Image>();
+        image.color = color;
+        image.raycastTarget = false;
 
-            view.Tile.gameObject.SetActive(selected);
+        if (addMask)
+            obj.AddComponent<RectMask2D>();
 
-            if (!selected)
-                continue;
-
-            mask |= G1CameraViewInfo.Bit(view.View);
-
-            if (receiver != null)
-            {
-                Texture2D texture =
-                    receiver.GetTexture(view.View);
-
-                if (texture != null)
-                    ApplyTexture(view, texture);
-            }
-        }
-
-        LayoutSelectedViews();
-
-        if (isActiveAndEnabled &&
-            receiver != null)
-        {
-            receiver.SetConsumerMask(this, mask);
-        }
+        return obj.GetComponent<RectTransform>();
     }
 
-    private void LayoutSelectedViews()
+    private static RectTransform CreateRect(
+        string objectName,
+        Transform parent)
     {
-        var active =
-            new List<ViewUi>();
+        GameObject obj =
+            new GameObject(
+                objectName,
+                typeof(RectTransform));
 
-        foreach (ViewUi view in views)
-        {
-            if (view.Toggle != null &&
-                view.Toggle.isOn)
-            {
-                active.Add(view);
-            }
-        }
+        obj.transform.SetParent(parent, false);
 
-        int count = active.Count;
-
-        if (count == 0)
-            return;
-
-        int columns =
-            count == 1
-                ? 1
-                : count <= 4
-                    ? 2
-                    : 3;
-
-        int rows =
-            Mathf.CeilToInt(
-                (float)count / columns);
-
-        for (int i = 0; i < count; i++)
-        {
-            int column = i % columns;
-            int row = i / columns;
-
-            float minX =
-                (float)column / columns;
-            float maxX =
-                (float)(column + 1) / columns;
-
-            float maxY =
-                1f - (float)row / rows;
-            float minY =
-                1f - (float)(row + 1) / rows;
-
-            RectTransform tile =
-                active[i].Tile;
-
-            tile.anchorMin =
-                new Vector2(minX, minY);
-            tile.anchorMax =
-                new Vector2(maxX, maxY);
-            tile.offsetMin =
-                new Vector2(
-                    viewGap * 0.5f,
-                    viewGap * 0.5f);
-            tile.offsetMax =
-                new Vector2(
-                    -viewGap * 0.5f,
-                    -viewGap * 0.5f);
-        }
+        return obj.GetComponent<RectTransform>();
     }
 
-    private void HandleTextureUpdated(
-        G1CameraView view,
-        Texture2D texture)
+    private static RawImage CreateRawImage(
+        string objectName,
+        Transform parent)
     {
-        foreach (ViewUi candidate in views)
-        {
-            if (candidate.View == view)
-            {
-                ApplyTexture(candidate, texture);
-                return;
-            }
-        }
+        GameObject obj =
+            new GameObject(
+                objectName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(RawImage));
+
+        obj.transform.SetParent(parent, false);
+
+        return obj.GetComponent<RawImage>();
     }
 
-    private static void ApplyTexture(
-        ViewUi view,
-        Texture2D texture)
+    private static void ConfigureImage(
+        RawImage image)
     {
-        if (view.Image == null ||
-            texture == null)
-        {
-            return;
-        }
+        AspectRatioFitter oldAspect =
+            image.GetComponent<AspectRatioFitter>();
 
-        view.Image.texture = texture;
+        if (oldAspect != null)
+            oldAspect.enabled = false;
 
-        ApplyAspectFillCrop(
-            view.Image,
-            texture);
+        RectTransform rect =
+            image.rectTransform;
+
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+
+        image.color = Color.white;
+        image.raycastTarget = false;
+        image.uvRect =
+            new Rect(0f, 0f, 1f, 1f);
     }
-
 
     private static void ApplyAspectFillCrop(
         RawImage image,
@@ -682,7 +909,6 @@ public sealed class G1CameraWindowController : MonoBehaviour
         {
             image.uvRect =
                 new Rect(0f, 0f, 1f, 1f);
-
             return;
         }
 
@@ -696,43 +922,27 @@ public sealed class G1CameraWindowController : MonoBehaviour
 
         if (textureAspect > viewportAspect)
         {
-            /*
-            * The texture is wider than the viewport.
-            * Crop equal amounts from its left and right sides.
-            */
             float visibleWidth =
                 viewportAspect /
                 textureAspect;
 
-            float horizontalOffset =
-                (1f - visibleWidth) *
-                0.5f;
-
             image.uvRect =
                 new Rect(
-                    horizontalOffset,
+                    (1f - visibleWidth) * 0.5f,
                     0f,
                     visibleWidth,
                     1f);
         }
         else
         {
-            /*
-            * The texture is taller than the viewport.
-            * Crop equal amounts from its top and bottom.
-            */
             float visibleHeight =
                 textureAspect /
                 viewportAspect;
 
-            float verticalOffset =
-                (1f - visibleHeight) *
-                0.5f;
-
             image.uvRect =
                 new Rect(
                     0f,
-                    verticalOffset,
+                    (1f - visibleHeight) * 0.5f,
                     1f,
                     visibleHeight);
         }

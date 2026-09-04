@@ -6,15 +6,17 @@ public enum G1CameraView : byte
     Near = 3,
     Disparity = 4,
     PointCloud = 5,
-    TopDown = 6
+    TopDown = 6,
+    LifeCam = 7
 }
 
 public static class G1CameraViewInfo
 {
-    public const int Count = 7;
+    public const int Count = 8;
 
-    public const ushort ValidMask =
-        (1 << Count) - 1;
+    // Wire IDs 3 and 6 stay reserved for compatibility,
+    // but Near and TopDown are no longer requestable.
+    public const ushort ValidMask = 0x00B7;
 
     public static ushort Bit(G1CameraView view)
     {
@@ -51,6 +53,9 @@ public static class G1CameraViewInfo
 
             case G1CameraView.TopDown:
                 return "TOP DOWN";
+
+            case G1CameraView.LifeCam:
+                return "LIFECAM";
 
             default:
                 return "UNKNOWN";
