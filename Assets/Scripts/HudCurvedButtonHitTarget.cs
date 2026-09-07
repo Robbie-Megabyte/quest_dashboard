@@ -24,6 +24,42 @@ public sealed class HudCurvedButtonHitTarget :
     private float surfaceOffsetTowardUser = 0.018f;
 
 
+    [Header("Optional Hold Interaction")]
+
+    [SerializeField, Min(0f)]
+    private float holdDurationSeconds;
+
+    public float HoldDurationSeconds
+    {
+        get { return holdDurationSeconds; }
+    }
+
+    public float HoldProgress01
+    {
+        get
+        {
+            if (holdCompleted)
+                return 1f;
+
+            if (!holding ||
+                holdDurationSeconds <= 0f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp01(
+                (
+                    Time.unscaledTime -
+                    holdStartedAt
+                ) /
+                holdDurationSeconds);
+        }
+    }
+
+    private bool holding;
+    private bool holdCompleted;
+    private float holdStartedAt;
+
     private HudWindow hudWindow;
     private Button targetButton;
     private RectTransform sourceRect;
@@ -66,11 +102,13 @@ public sealed class HudCurvedButtonHitTarget :
     private void LateUpdate()
     {
         SynchronizeHitTarget();
+        UpdateHold();
     }
 
 
     private void OnDisable()
     {
+        CancelHold();
         UnsubscribeEvents();
         SetHovered(false);
 
@@ -168,6 +206,9 @@ public sealed class HudCurvedButtonHitTarget :
         interactable.selectEntered.AddListener(
             HandleSelected);
 
+        interactable.selectExited.AddListener(
+            HandleSelectionEnded);
+
         interactable.hoverEntered.AddListener(
             HandleHoverEntered);
 
@@ -188,6 +229,9 @@ public sealed class HudCurvedButtonHitTarget :
 
         interactable.selectEntered.RemoveListener(
             HandleSelected);
+
+        interactable.selectExited.RemoveListener(
+            HandleSelectionEnded);
 
         interactable.hoverEntered.RemoveListener(
             HandleHoverEntered);
@@ -225,7 +269,10 @@ public sealed class HudCurvedButtonHitTarget :
             hitObject.SetActive(shouldBeActive);
 
         if (!shouldBeActive)
+        {
+            CancelHold();
             return;
+        }
 
         sourceRect.GetWorldCorners(worldCorners);
 
@@ -327,6 +374,16 @@ public sealed class HudCurvedButtonHitTarget :
     }
 
 
+    public void ConfigureHoldDuration(
+        float seconds)
+    {
+        holdDurationSeconds =
+            Mathf.Max(0f, seconds);
+
+        CancelHold();
+    }
+
+
     private void HandleSelected(
         SelectEnterEventArgs eventArguments)
     {
@@ -337,10 +394,62 @@ public sealed class HudCurvedButtonHitTarget :
             return;
         }
 
-        /*
-         * Preserve the button's existing On Click event.
-         */
+        if (holdDurationSeconds <= 0f)
+        {
+            targetButton.onClick.Invoke();
+            return;
+        }
+
+        holding = true;
+        holdCompleted = false;
+        holdStartedAt = Time.unscaledTime;
+    }
+
+
+    private void HandleSelectionEnded(
+        SelectExitEventArgs eventArguments)
+    {
+        CancelHold();
+    }
+
+
+    private void UpdateHold()
+    {
+        if (!holding ||
+            holdCompleted ||
+            holdDurationSeconds <= 0f)
+        {
+            return;
+        }
+
+        if (targetButton == null ||
+            !targetButton.isActiveAndEnabled ||
+            !targetButton.interactable)
+        {
+            CancelHold();
+            return;
+        }
+
+        if (
+            Time.unscaledTime -
+            holdStartedAt <
+            holdDurationSeconds)
+        {
+            return;
+        }
+
+        holding = false;
+        holdCompleted = true;
+
         targetButton.onClick.Invoke();
+    }
+
+
+    private void CancelHold()
+    {
+        holding = false;
+        holdCompleted = false;
+        holdStartedAt = 0f;
     }
 
 

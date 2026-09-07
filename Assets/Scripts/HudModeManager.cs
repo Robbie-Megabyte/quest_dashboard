@@ -48,6 +48,10 @@ public class HudModeManager : MonoBehaviour
     [SerializeField]
     private HudWindowPaletteController paletteController;
 
+    [SerializeField]
+    private G1QuestTeleopModeCoordinator
+        teleopCoordinator;
+
 
     [SerializeField]
     private GameObject gridVisualizerRoot;
@@ -135,6 +139,24 @@ public class HudModeManager : MonoBehaviour
     void OnValidate()
     {
         RebindReferences();
+    }
+
+
+    void Update()
+    {
+        /*
+         * A real or simulated teleop transition must remain
+         * in Live mode. This also catches transitions started
+         * externally by the robot/controller.
+         */
+        if (
+            currentMode == HudMode.Edit &&
+            IsEditModeBlocked()
+        )
+        {
+            currentMode = HudMode.Live;
+            ApplyCurrentMode();
+        }
     }
 
 
@@ -230,6 +252,14 @@ public class HudModeManager : MonoBehaviour
         paletteController =
             hudRoot.GetComponentInChildren
             <HudWindowPaletteController>(true);
+
+
+        if (teleopCoordinator == null)
+        {
+            teleopCoordinator =
+                Object.FindAnyObjectByType
+                <G1QuestTeleopModeCoordinator>();
+        }
     }
 
 
@@ -274,11 +304,38 @@ public class HudModeManager : MonoBehaviour
     public void SetMode(
         HudMode newMode)
     {
+        if (
+            newMode == HudMode.Edit &&
+            IsEditModeBlocked()
+        )
+        {
+            if (logModeChanges)
+            {
+                Debug.LogWarning(
+                    "HUD MODE: Edit is blocked during " +
+                    "teleoperation or a safety transition.",
+                    this
+                );
+            }
+
+            ApplyCurrentMode();
+            return;
+        }
+
+
         currentMode =
             newMode;
 
 
         ApplyCurrentMode();
+    }
+
+
+    private bool IsEditModeBlocked()
+    {
+        return
+            teleopCoordinator != null &&
+            teleopCoordinator.BlocksHudEditing;
     }
 
 
@@ -381,9 +438,13 @@ public class HudModeManager : MonoBehaviour
         if (modeButtonLabel != null)
         {
             modeButtonLabel.text =
-                editMode
-                    ? enterLiveModeLabel
-                    : enterEditModeLabel;
+                IsEditModeBlocked()
+                    ? "TELEOP"
+                    : (
+                        editMode
+                            ? enterLiveModeLabel
+                            : enterEditModeLabel
+                    );
         }
 
 

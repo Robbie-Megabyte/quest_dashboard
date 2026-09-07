@@ -10,6 +10,7 @@ public sealed class G1QuestLocomotionSender :
     MonoBehaviour
 {
     private const int BodyBytes = 52;
+    private const int ActionBodyBytes = 32;
     private const int HmacBytes = 32;
 
     [Header("Robot")]
@@ -35,6 +36,11 @@ public sealed class G1QuestLocomotionSender :
     [SerializeField]
     private InputActionReference leftDeadmanAction;
 
+    [Header("Mode Gate")]
+
+    [SerializeField, Range(0.05f, 0.5f)]
+    private float neutralInputThreshold = 0.15f;
+
     [Header("Transmission")]
 
     [SerializeField, Range(10f, 60f)]
@@ -47,10 +53,40 @@ public sealed class G1QuestLocomotionSender :
     private byte[] key;
     private ulong sessionId;
     private ulong sequence;
+    private ulong actionSequence;
 
     private float nextSendTime;
     private float nextLogTime;
     private long transmittedPackets;
+    private bool commandEnabled = true;
+
+    public Vector2 CurrentLeftInput { get; private set; }
+
+    public Vector2 CurrentRightInput { get; private set; }
+
+    public float CurrentDeadman { get; private set; }
+
+    public bool CommandEnabled
+    {
+        get { return commandEnabled; }
+    }
+
+    public bool ControlsNeutral
+    {
+        get
+        {
+            float threshold =
+                Mathf.Clamp(
+                    neutralInputThreshold,
+                    0.05f,
+                    0.5f);
+
+            return
+                CurrentLeftInput.magnitude <= threshold &&
+                CurrentRightInput.magnitude <= threshold &&
+                CurrentDeadman < 0.1f;
+        }
+    }
 
     private void Awake()
     {
@@ -119,6 +155,16 @@ public sealed class G1QuestLocomotionSender :
 
     private void Update()
     {
+        CurrentLeftInput =
+            ReadVector2(leftMoveAction);
+
+        CurrentRightInput =
+            ReadVector2(rightTurnAction);
+
+        CurrentDeadman =
+            Mathf.Clamp01(
+                ReadFloat(leftDeadmanAction));
+
         if (udp == null ||
             Time.unscaledTime < nextSendTime)
         {
@@ -130,14 +176,19 @@ public sealed class G1QuestLocomotionSender :
             1f / Mathf.Max(10f, sendRateHz);
 
         Vector2 left =
-            ReadVector2(leftMoveAction);
+            commandEnabled
+                ? CurrentLeftInput
+                : Vector2.zero;
 
         Vector2 right =
-            ReadVector2(rightTurnAction);
+            commandEnabled
+                ? CurrentRightInput
+                : Vector2.zero;
 
         float deadman =
-            Mathf.Clamp01(
-                ReadFloat(leftDeadmanAction));
+            commandEnabled
+                ? CurrentDeadman
+                : 0f;
 
         SendPacket(
             left,
@@ -154,12 +205,165 @@ public sealed class G1QuestLocomotionSender :
             Debug.Log(
                 "[G1 Locomotion TX] " +
                 $"packets={transmittedPackets} " +
+                $"gate={(commandEnabled ? "OPEN" : "BLOCKED")} " +
                 $"left=({left.x:+0.000;-0.000;0.000}," +
                 $"{left.y:+0.000;-0.000;0.000}) " +
                 $"right=({right.x:+0.000;-0.000;0.000}," +
                 $"{right.y:+0.000;-0.000;0.000}) " +
                 $"deadman={deadman:0.000}",
                 this);
+        }
+    }
+
+    public void SetCommandEnabled(
+        bool value)
+    {
+        if (commandEnabled == value)
+            return;
+
+        commandEnabled = value;
+
+        if (!commandEnabled)
+            SendNeutralBurst();
+
+        if (verboseLogging)
+        {
+            Debug.Log(
+                "[G1 Locomotion TX] command gate " +
+                (commandEnabled
+                    ? "OPEN"
+                    : "BLOCKED"),
+                this);
+        }
+    }
+
+    public bool TrySendTeleopAction(
+        string operation,
+        out string error)
+    {
+        error = null;
+
+        if (udp == null || key == null)
+        {
+            error = "Quest action transport is unavailable.";
+            return false;
+        }
+
+        ushort operationCode;
+
+        switch (operation)
+        {
+            case "REQUEST_XR":
+                operationCode = 1;
+                break;
+
+            case "CANCEL_XR_REQUEST":
+                operationCode = 2;
+                break;
+
+            case "HAND_BACK_ARMS":
+                operationCode = 3;
+                break;
+
+            default:
+                error =
+                    "Unsupported teleop action: " +
+                    operation;
+                return false;
+        }
+
+        try
+        {
+            actionSequence++;
+
+            byte[] body =
+                new byte[ActionBodyBytes];
+
+            body[0] = (byte)'G';
+            body[1] = (byte)'1';
+            body[2] = (byte)'A';
+            body[3] = (byte)'1';
+
+            WriteUInt16(body, 4, 1);
+            WriteUInt16(
+                body,
+                6,
+                operationCode);
+
+            WriteUInt64(body, 8, sessionId);
+            WriteUInt64(
+                body,
+                16,
+                actionSequence);
+            WriteUInt64(
+                body,
+                24,
+                GetMonotonicNanoseconds());
+
+            byte[] digest;
+
+            using (
+                HMACSHA256 hmac =
+                    new HMACSHA256(key))
+            {
+                digest =
+                    hmac.ComputeHash(body);
+            }
+
+            byte[] packet =
+                new byte[
+                    ActionBodyBytes +
+                    HmacBytes];
+
+            Buffer.BlockCopy(
+                body,
+                0,
+                packet,
+                0,
+                ActionBodyBytes);
+
+            Buffer.BlockCopy(
+                digest,
+                0,
+                packet,
+                ActionBodyBytes,
+                HmacBytes);
+
+            /*
+             * Repeat one idempotent sequence to tolerate an
+             * occasional Wi-Fi UDP loss. The robot accepts the
+             * first copy and silently ignores the duplicates.
+             */
+            for (int index = 0;
+                 index < 3;
+                 index++)
+            {
+                udp.Send(
+                    packet,
+                    packet.Length);
+            }
+
+            if (verboseLogging)
+            {
+                Debug.Log(
+                    "[G1 Teleop Action TX] " +
+                    $"operation={operation} " +
+                    $"sequence={actionSequence}",
+                    this);
+            }
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+
+            Debug.LogWarning(
+                "[G1 Teleop Action TX] send failed: " +
+                exception.Message,
+                this);
+
+            return false;
         }
     }
 

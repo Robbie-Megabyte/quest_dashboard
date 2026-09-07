@@ -18,6 +18,7 @@ public sealed class G1DashboardTelemetryClient :
         public Arms arms;
         public Motors motors;
         public Hands hands;
+        public Actions actions;
         public Computer computer;
     }
 
@@ -43,6 +44,39 @@ public sealed class G1DashboardTelemetryClient :
         public string safety_fault;
         public string tracking_hold;
         public bool tracking_guard;
+    }
+
+    [Serializable]
+    public sealed class Actions
+    {
+        public string schema;
+        public bool request_channel_enabled;
+        public XrHandover xr_handover;
+        public EngagementConditions engagement_conditions;
+    }
+
+    [Serializable]
+    public sealed class XrHandover
+    {
+        public bool available;
+        public string operation;
+        public string label;
+        public string reason;
+        public string would_enter_state;
+        public string source;
+    }
+
+    [Serializable]
+    public sealed class EngagementConditions
+    {
+        public bool lowstate_ok;
+        public bool xr_ok;
+        public string xr_reason;
+        public bool stop_gate_instant;
+        public bool stop_gate_ready;
+        public float stop_gate_elapsed_s;
+        public bool safety_fault_clear;
+        public bool tracking_hold_active;
     }
 
     [Serializable]
