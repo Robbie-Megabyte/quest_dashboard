@@ -42,8 +42,8 @@ public sealed class HudEditMenuCoordinator : MonoBehaviour
     [SerializeField]
     private Vector2 paletteMenuSizeMeters =
         new Vector2(
-            0.60f,
-            0.29f
+            1.00f,
+            0.60f
         );
 
     [Tooltip(
@@ -211,8 +211,20 @@ public sealed class HudEditMenuCoordinator : MonoBehaviour
                 paletteTitle
             );
 
+            Vector2 listSize =
+                new Vector2(
+                    Mathf.Max(
+                        paletteMenuSizeMeters.x,
+                        1.00f
+                    ),
+                    Mathf.Max(
+                        paletteMenuSizeMeters.y,
+                        0.60f
+                    )
+                );
+
             sharedMenuWindow.SetSizeMeters(
-                paletteMenuSizeMeters
+                listSize
             );
         }
     }
