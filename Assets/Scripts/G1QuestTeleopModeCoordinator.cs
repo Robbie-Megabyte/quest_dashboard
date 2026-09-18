@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Inputs;
 
 [DefaultExecutionOrder(50)]
 [DisallowMultipleComponent]
@@ -14,6 +15,8 @@ public sealed class G1QuestTeleopModeCoordinator :
         ConfirmEntry,
         Aligning,
         TeleopActive,
+        PoseHeld,
+        Realigning,
         Transition,
         Fault
     }
@@ -25,6 +28,9 @@ public sealed class G1QuestTeleopModeCoordinator :
 
     [SerializeField]
     private G1QuestLocomotionSender locomotionSender;
+
+    [SerializeField]
+    private XRInputModalityManager inputModalityManager;
 
     [Header("Entry Sequence")]
 
@@ -38,6 +44,9 @@ public sealed class G1QuestTeleopModeCoordinator :
 
     [SerializeField, Min(0.5f)]
     private float actionTransitionTimeoutSeconds = 2f;
+
+    [SerializeField, Min(0f)]
+    private float controllerReadyStableSeconds = 0.25f;
 
     [Header("Development")]
 
@@ -110,6 +119,11 @@ public sealed class G1QuestTeleopModeCoordinator :
     private float pendingActionSentAt = -1f;
     private ModeState lastLoggedState;
     private bool hasLoggedState;
+    private XRInputModalityManager boundInputModalityManager;
+    private bool controllerModeActive;
+    private bool trackedHandModeActive;
+    private float controllersBecameReadyAt = -1f;
+    private bool poseHoldLocomotionArmed;
 
     private void Awake()
     {
@@ -120,11 +134,19 @@ public sealed class G1QuestTeleopModeCoordinator :
     private void OnEnable()
     {
         ResolveReferences();
+        BindInputModalityEvents();
         RefreshState(true);
+    }
+
+    private void OnDisable()
+    {
+        UnbindInputModalityEvents();
+        SetLocomotionAllowed(false);
     }
 
     private void Update()
     {
+        BindInputModalityEvents();
         RefreshState(false);
     }
 
@@ -141,6 +163,15 @@ public sealed class G1QuestTeleopModeCoordinator :
         if (!string.IsNullOrEmpty(
                 pendingActionOperation))
         {
+            if (
+                IsTeleopActive &&
+                pendingActionOperation !=
+                    "HAND_BACK_ARMS")
+            {
+                ClearPendingAction();
+                ExitTeleopImmediately();
+            }
+
             return;
         }
 
@@ -280,6 +311,115 @@ public sealed class G1QuestTeleopModeCoordinator :
                 FindAnyObjectByType<
                     G1QuestLocomotionSender>();
         }
+
+        if (inputModalityManager == null)
+        {
+            inputModalityManager =
+                FindAnyObjectByType<
+                    XRInputModalityManager>();
+        }
+    }
+
+    private void BindInputModalityEvents()
+    {
+        if (inputModalityManager == null)
+            ResolveReferences();
+
+        if (
+            inputModalityManager == null ||
+            boundInputModalityManager ==
+                inputModalityManager)
+        {
+            return;
+        }
+
+        UnbindInputModalityEvents();
+
+        boundInputModalityManager =
+            inputModalityManager;
+
+        boundInputModalityManager
+            .motionControllerModeStarted
+            .AddListener(
+                HandleMotionControllerModeStarted);
+
+        boundInputModalityManager
+            .motionControllerModeEnded
+            .AddListener(
+                HandleMotionControllerModeEnded);
+
+        boundInputModalityManager
+            .trackedHandModeStarted
+            .AddListener(
+                HandleTrackedHandModeStarted);
+
+        boundInputModalityManager
+            .trackedHandModeEnded
+            .AddListener(
+                HandleTrackedHandModeEnded);
+
+        controllerModeActive =
+            AnyControllerTracked();
+        trackedHandModeActive =
+            AnyTrackedHandActive();
+    }
+
+    private void UnbindInputModalityEvents()
+    {
+        if (boundInputModalityManager == null)
+            return;
+
+        boundInputModalityManager
+            .motionControllerModeStarted
+            .RemoveListener(
+                HandleMotionControllerModeStarted);
+
+        boundInputModalityManager
+            .motionControllerModeEnded
+            .RemoveListener(
+                HandleMotionControllerModeEnded);
+
+        boundInputModalityManager
+            .trackedHandModeStarted
+            .RemoveListener(
+                HandleTrackedHandModeStarted);
+
+        boundInputModalityManager
+            .trackedHandModeEnded
+            .RemoveListener(
+                HandleTrackedHandModeEnded);
+
+        boundInputModalityManager = null;
+    }
+
+    private void HandleMotionControllerModeStarted()
+    {
+        controllerModeActive = true;
+        controllersBecameReadyAt = -1f;
+
+        if (verboseLogging)
+        {
+            Debug.Log(
+                "[G1 Teleop Mode] motion controller " +
+                "mode started; requesting safe pose hold.",
+                this);
+        }
+    }
+
+    private void HandleMotionControllerModeEnded()
+    {
+        controllerModeActive = false;
+        controllersBecameReadyAt = -1f;
+    }
+
+    private void HandleTrackedHandModeStarted()
+    {
+        trackedHandModeActive = true;
+    }
+
+    private void HandleTrackedHandModeEnded()
+    {
+        trackedHandModeActive = false;
     }
 
     private void RefreshState(
@@ -290,7 +430,19 @@ public sealed class G1QuestTeleopModeCoordinator :
         string serverState =
             GetServerState();
 
+        if (!string.Equals(
+                serverState,
+                "XR_OPERATOR_HOLD",
+                StringComparison.Ordinal))
+        {
+            poseHoldLocomotionArmed = false;
+            controllersBecameReadyAt = -1f;
+        }
+
         UpdateXrStatus();
+
+        ServiceInputModalityRequests(
+            serverState);
 
         bool serverStateAvailable =
             !string.IsNullOrEmpty(serverState);
@@ -311,6 +463,21 @@ public sealed class G1QuestTeleopModeCoordinator :
                         !IsServerTeleopActive(
                             serverState)
                     )
+                    : pendingActionOperation ==
+                        "HOLD_XR_POSE"
+                        ? string.Equals(
+                            serverState,
+                            "XR_OPERATOR_HOLD",
+                            StringComparison.Ordinal)
+                        : pendingActionOperation ==
+                            "RESUME_XR_POSE"
+                            ? (
+                                serverStateAvailable &&
+                                !string.Equals(
+                                    serverState,
+                                    "XR_OPERATOR_HOLD",
+                                    StringComparison.Ordinal)
+                            )
                     : false;
 
         if (pendingAcknowledged)
@@ -337,7 +504,13 @@ public sealed class G1QuestTeleopModeCoordinator :
                     pendingActionOperation ==
                         "HAND_BACK_ARMS"
                         ? "EXIT REQUESTED"
-                        : "ENTRY REQUESTED",
+                        : pendingActionOperation ==
+                            "HOLD_XR_POSE"
+                            ? "FREEZING POSE"
+                            : pendingActionOperation ==
+                                "RESUME_XR_POSE"
+                                ? "PREPARING HANDS"
+                                : "ENTRY REQUESTED",
                     "Waiting for the robot controller " +
                     "to acknowledge the request.",
                     forceLog);
@@ -350,19 +523,27 @@ public sealed class G1QuestTeleopModeCoordinator :
 
             ClearPendingAction();
 
-            if (
-                timedOutOperation ==
-                    "HAND_BACK_ARMS" &&
-                IsServerTeleopActive(serverState)
-            )
+            if (IsServerTeleopActive(serverState))
             {
                 SetLocomotionAllowed(false);
 
                 SetState(
-                    ModeState.TeleopActive,
-                    "EXIT REQUEST TIMEOUT",
-                    "The controller remained in teleoperation. " +
-                    "Press Stop Teleop to retry.",
+                    string.Equals(
+                        serverState,
+                        "XR_OPERATOR_HOLD",
+                        StringComparison.Ordinal)
+                        ? ModeState.PoseHeld
+                        : ModeState.TeleopActive,
+                    timedOutOperation ==
+                        "HAND_BACK_ARMS"
+                        ? "EXIT REQUEST TIMEOUT"
+                        : "MODE REQUEST TIMEOUT",
+                    "The robot remained in " +
+                        SafeText(
+                            serverState,
+                            "teleoperation") +
+                        ". Locomotion remains blocked until " +
+                        "the state is confirmed.",
                     true);
             }
             else
@@ -376,6 +557,61 @@ public sealed class G1QuestTeleopModeCoordinator :
                     "Check the listener log and retry.",
                     true);
             }
+
+            return;
+        }
+
+        if (string.Equals(
+                serverState,
+                "XR_OPERATOR_HOLD",
+                StringComparison.Ordinal))
+        {
+            simulatedTeleopActive = false;
+            countdownEndsAt = -1f;
+            EntryPanelOpen = false;
+            CanConfirmEntry = false;
+            readinessBecameTrueAt = -1f;
+
+            bool controllersReady =
+                ControllersReadyForLocomotion();
+
+            SetLocomotionAllowed(
+                controllersReady);
+
+            SetState(
+                ModeState.PoseHeld,
+                controllersReady
+                    ? "POSE HELD · DRIVE READY"
+                    : "POSE HELD",
+                controllersReady
+                    ? "Arms and fingers are frozen. " +
+                        "Hold the deadman to move the base."
+                    : "Waiting for both tracked controllers " +
+                        "with centered controls.",
+                forceLog);
+
+            return;
+        }
+
+        if (string.Equals(
+                serverState,
+                "XR_TRACKING_HOLD",
+                StringComparison.Ordinal))
+        {
+            simulatedTeleopActive = false;
+            countdownEndsAt = -1f;
+            EntryPanelOpen = false;
+            CanConfirmEntry = false;
+            readinessBecameTrueAt = -1f;
+
+            SetLocomotionAllowed(false);
+
+            SetState(
+                ModeState.Realigning,
+                "ALIGN HANDS",
+                "Base motion is stopped. Match both wrists " +
+                    "to the frozen robot pose to resume teleoperation.",
+                forceLog);
 
             return;
         }
@@ -785,6 +1021,184 @@ public sealed class G1QuestTeleopModeCoordinator :
                 : "XR BAD";
     }
 
+    private void ServiceInputModalityRequests(
+        string serverState)
+    {
+        if (
+            dryRun ||
+            locomotionSender == null ||
+            !string.IsNullOrEmpty(
+                pendingActionOperation))
+        {
+            return;
+        }
+
+        controllerModeActive =
+            controllerModeActive ||
+            AnyControllerTracked();
+
+        if (
+            controllerModeActive &&
+            string.Equals(
+                serverState,
+                "XR_ACTIVE",
+                StringComparison.Ordinal))
+        {
+            TrySendAutomaticModeAction(
+                "HOLD_XR_POSE");
+            return;
+        }
+
+        bool handsReady =
+            trackedHandModeActive &&
+            BothTrackedHandsActive() &&
+            !AnyControllerTracked();
+
+        if (
+            handsReady &&
+            string.Equals(
+                serverState,
+                "XR_OPERATOR_HOLD",
+                StringComparison.Ordinal))
+        {
+            TrySendAutomaticModeAction(
+                "RESUME_XR_POSE");
+        }
+    }
+
+    private void TrySendAutomaticModeAction(
+        string operation)
+    {
+        string error = null;
+
+        SetLocomotionAllowed(false);
+
+        if (
+            locomotionSender.TrySendTeleopAction(
+                operation,
+                out error))
+        {
+            BeginPendingAction(operation);
+            return;
+        }
+
+        if (verboseLogging)
+        {
+            Debug.LogWarning(
+                "[G1 Teleop Mode] automatic action " +
+                $"{operation} failed: " +
+                SafeText(
+                    error,
+                    "transport unavailable"),
+                this);
+        }
+    }
+
+    private bool ControllersReadyForLocomotion()
+    {
+        bool prerequisitesReady =
+            telemetryClient != null &&
+            telemetryClient.HasData &&
+            telemetryClient.TransportFresh &&
+            BothControllersTracked() &&
+            locomotionSender != null;
+
+        if (!prerequisitesReady)
+        {
+            poseHoldLocomotionArmed = false;
+            controllersBecameReadyAt = -1f;
+            return false;
+        }
+
+        if (poseHoldLocomotionArmed)
+            return true;
+
+        if (!locomotionSender.ControlsNeutral)
+        {
+            controllersBecameReadyAt = -1f;
+            return false;
+        }
+
+        if (controllersBecameReadyAt < 0f)
+        {
+            controllersBecameReadyAt =
+                Time.unscaledTime;
+        }
+
+        bool stable =
+            Time.unscaledTime -
+                controllersBecameReadyAt >=
+            Mathf.Max(
+                0f,
+                controllerReadyStableSeconds);
+
+        if (!stable)
+            return false;
+
+        poseHoldLocomotionArmed = true;
+        return true;
+    }
+
+    private bool AnyControllerTracked()
+    {
+        return
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.leftController
+                    : null) ||
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.rightController
+                    : null);
+    }
+
+    private bool BothControllersTracked()
+    {
+        return
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.leftController
+                    : null) &&
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.rightController
+                    : null);
+    }
+
+    private bool AnyTrackedHandActive()
+    {
+        return
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.leftHand
+                    : null) ||
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.rightHand
+                    : null);
+    }
+
+    private bool BothTrackedHandsActive()
+    {
+        return
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.leftHand
+                    : null) &&
+            IsActive(
+                inputModalityManager != null
+                    ? inputModalityManager.rightHand
+                    : null);
+    }
+
+    private static bool IsActive(
+        GameObject target)
+    {
+        return
+            target != null &&
+            target.activeInHierarchy;
+    }
+
     private string GetServerState()
     {
         if (telemetryClient == null ||
@@ -863,6 +1277,10 @@ public sealed class G1QuestTeleopModeCoordinator :
             string.Equals(
                 state,
                 "XR_ACTIVE",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                state,
+                "XR_OPERATOR_HOLD",
                 StringComparison.Ordinal) ||
             string.Equals(
                 state,

@@ -708,6 +708,22 @@ public sealed class G1QuestTeleopUiController :
                 break;
 
             case G1QuestTeleopModeCoordinator
+                .ModeState.PoseHeld:
+
+                color = activeColor;
+                label = "STOP TELEOP\nPOSE HELD";
+                enabled = true;
+                break;
+
+            case G1QuestTeleopModeCoordinator
+                .ModeState.Realigning:
+
+                color = transitionColor;
+                label = "STOP TELEOP\nALIGN HANDS";
+                enabled = true;
+                break;
+
+            case G1QuestTeleopModeCoordinator
                 .ModeState.Transition:
 
                 color = transitionColor;

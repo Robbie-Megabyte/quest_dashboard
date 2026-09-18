@@ -265,6 +265,14 @@ public sealed class G1QuestLocomotionSender :
                 operationCode = 3;
                 break;
 
+            case "HOLD_XR_POSE":
+                operationCode = 4;
+                break;
+
+            case "RESUME_XR_POSE":
+                operationCode = 5;
+                break;
+
             default:
                 error =
                     "Unsupported teleop action: " +
