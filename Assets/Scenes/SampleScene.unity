@@ -50244,9 +50244,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::G1QuestTeleopModeCoordinator
   telemetryClient: {fileID: 0}
   locomotionSender: {fileID: 0}
+  inputModalityManager: {fileID: 0}
   readinessStableSeconds: 0.5
   alignmentCountdownSeconds: 3
   actionTransitionTimeoutSeconds: 2
+  controllerReadyStableSeconds: 0.25
   dryRun: 0
   verboseLogging: 1
 --- !u!1 &1129796733
@@ -64394,16 +64396,15 @@ MonoBehaviour:
       row: 2
       columnSpan: 10
       rowSpan: 11
-    - windowId: slam
-      column: 11
-      row: 8
-      columnSpan: 4
-      rowSpan: 5
-    - windowId: robot
-      column: 11
+  - presetId: agents
+    displayName: Agents
+    builtIn: 1
+    windows:
+    - windowId: agents
+      column: 1
       row: 2
-      columnSpan: 4
-      rowSpan: 6
+      columnSpan: 10
+      rowSpan: 11
   maximumCustomPresets: 10
 --- !u!1 &1394583570
 GameObject:
@@ -75060,6 +75061,9 @@ MonoBehaviour:
   cameraPitchDegrees: 55
   minimumViewSize: 2.5
   maximumViewSize: 15
+  staticPointSize: 2.5
+  staticPointMinimumHeight: -0.1
+  staticPointMaximumHeight: 2.5
   rotationSensitivity: 0.18
   zoomSensitivity: 0.08
   panSensitivity: 1
