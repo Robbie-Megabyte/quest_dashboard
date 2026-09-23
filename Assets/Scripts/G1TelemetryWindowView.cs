@@ -7,11 +7,11 @@ using UnityEngine.UI;
 public sealed class G1TelemetryWindowView :
     MonoBehaviour
 {
-    private const string Good = "#45E6A1";
-    private const string Warning = "#FFD166";
-    private const string Bad = "#FF5D73";
-    private const string Muted = "#86A2B6";
-    private const string Value = "#FFFFFF";
+    private const string Good = "#79D66B";
+    private const string Warning = "#F2A900";
+    private const string Bad = "#EF5B64";
+    private const string Muted = "#91A097";
+    private const string Value = "#E9EEE9";
 
     [Header("Data")]
     [SerializeField]
@@ -51,19 +51,19 @@ public sealed class G1TelemetryWindowView :
     private float nextDisplayRefresh;
 
     private static readonly Color CardColor =
-        new Color32(12, 29, 42, 235);
+        new Color32(17, 21, 18, 235);
 
     private static readonly Color GoodBackground =
-        new Color32(10, 67, 54, 235);
+        new Color32(38, 71, 42, 235);
 
     private static readonly Color WarningBackground =
-        new Color32(76, 59, 16, 235);
+        new Color32(73, 54, 11, 235);
 
     private static readonly Color BadBackground =
-        new Color32(76, 24, 34, 235);
+        new Color32(73, 29, 32, 235);
 
     private static readonly Color OfflineBackground =
-        new Color32(31, 44, 55, 235);
+        new Color32(22, 27, 23, 235);
 
     private void Awake()
     {
@@ -483,7 +483,7 @@ public sealed class G1TelemetryWindowView :
         text.fontSizeMin = minimumSize;
         text.fontSizeMax = maximumSize;
         text.alignment = alignment;
-        text.color = Color.white;
+        text.color = HudDashboardTheme.TextPrimary;
         text.richText = true;
         text.raycastTarget = false;
 

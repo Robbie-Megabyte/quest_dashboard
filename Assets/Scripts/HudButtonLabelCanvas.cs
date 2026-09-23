@@ -60,6 +60,7 @@ public class HudButtonLabelCanvas : MonoBehaviour
 
     void Awake()
     {
+        textColor = HudDashboardTheme.TextPrimary;
         BuildOrFindLabel();
         ApplyAppearance();
         ApplyPose();
@@ -212,6 +213,37 @@ public class HudButtonLabelCanvas : MonoBehaviour
 
 
     // ========================================================
+    // RUNTIME CONFIGURATION
+    // ========================================================
+
+    public void ConfigureTypography(
+        float uniformFontSize,
+        float buttonWidthMeters)
+    {
+        fontSize =
+            Mathf.Max(
+                1.0f,
+                uniformFontSize);
+
+        float safeScale =
+            Mathf.Max(
+                0.0001f,
+                canvasWorldScale);
+
+        canvasSizePixels =
+            new Vector2(
+                Mathf.Max(
+                    1.0f,
+                    buttonWidthMeters / safeScale),
+                canvasSizePixels.y);
+
+        BuildOrFindLabel();
+        ApplyAppearance();
+        ApplyPose();
+    }
+
+
+    // ========================================================
     // APPEARANCE
     // ========================================================
 
@@ -242,6 +274,9 @@ public class HudButtonLabelCanvas : MonoBehaviour
 
         label.alignment =
             TextAlignmentOptions.Center;
+
+        label.fontStyle =
+            FontStyles.Bold;
 
 
         label.enableWordWrapping =

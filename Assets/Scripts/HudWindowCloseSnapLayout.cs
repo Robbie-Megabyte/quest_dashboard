@@ -144,6 +144,55 @@ public class HudWindowCloseSnapLayout : MonoBehaviour
 
 
     // ========================================================
+    // APPEARANCE
+    // ========================================================
+
+    private void ApplyDashboardAppearance()
+    {
+        Renderer[] renderers =
+            GetComponentsInChildren<Renderer>(true);
+
+        foreach (Renderer targetRenderer in renderers)
+        {
+            if (targetRenderer == null)
+                continue;
+
+            Color color;
+
+            if (targetRenderer.name == "ButtonVisual")
+            {
+                color = HudDashboardTheme.Green;
+            }
+            else if (
+                targetRenderer.name == "XBar_A" ||
+                targetRenderer.name == "XBar_B")
+            {
+                color = HudDashboardTheme.Background;
+            }
+            else
+            {
+                continue;
+            }
+
+            MaterialPropertyBlock properties =
+                new MaterialPropertyBlock();
+
+            targetRenderer.GetPropertyBlock(properties);
+
+            properties.SetColor(
+                "_BaseColor",
+                color);
+
+            properties.SetColor(
+                "_Color",
+                color);
+
+            targetRenderer.SetPropertyBlock(properties);
+        }
+    }
+
+
+    // ========================================================
     // WINDOW SIZE EVENT
     // ========================================================
 
@@ -197,6 +246,7 @@ public class HudWindowCloseSnapLayout : MonoBehaviour
     public void ApplyLayout()
     {
         RebindReferences();
+        ApplyDashboardAppearance();
 
 
         if (hudWindow == null ||

@@ -12534,6 +12534,8 @@ MonoBehaviour:
   previewColor: {r: 0.15, g: 1, b: 0.8, a: 0.95}
   previewLineWidth: 0.009
   surfaceOffsetTowardUser: 0
+  gridSortingOrder: -100
+  previewSortingOrder: 100
   curveSegments: 24
 --- !u!1 &328831182
 GameObject:
@@ -15783,7 +15785,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.125, y: 0.04, z: 0.03}
+  m_Size: {x: 0.14, y: 0.04, z: 0.03}
   m_Center: {x: 0, y: 0, z: -0.015}
 --- !u!1 &410087039
 GameObject:
@@ -25797,7 +25799,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.11, y: 0.045, z: 0.012}
+  m_LocalScale: {x: 0.1, y: 0.045, z: 0.012}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2062060163}
@@ -34180,7 +34182,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07058824, b: 0.10980392, a: 0.78431374}
+  m_Color: {r: 0.06666667, g: 0.08235294, b: 0.07058824, a: 0.9607843}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -38645,7 +38647,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07058824, b: 0.10980392, a: 0.78431374}
+  m_Color: {r: 0.06666667, g: 0.08235294, b: 0.07058824, a: 0.9607843}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -38736,7 +38738,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07058824, b: 0.10980392, a: 0.78431374}
+  m_Color: {r: 0.06666667, g: 0.08235294, b: 0.07058824, a: 0.9607843}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -38805,7 +38807,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.11, y: 0.045, z: 0.012}
+  m_LocalScale: {x: 0.125, y: 0.045, z: 0.012}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1154648433}
@@ -50223,7 +50225,7 @@ MonoBehaviour:
   gridManager: {fileID: 0}
   paletteController: {fileID: 0}
   modeManager: {fileID: 0}
-  buttonGapBelowGridDegrees: 6
+  buttonGapAboveGridDegrees: 3
   panelYawDegrees: 0
   panelPitchDegrees: -5
   lockedColor: {r: 0.32, g: 0.34, b: 0.38, a: 1}
@@ -51451,7 +51453,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.125, y: 0.04, z: 0.03}
+  m_Size: {x: 0.115, y: 0.04, z: 0.03}
   m_Center: {x: 0, y: 0, z: -0.015}
 --- !u!1 &1153191982
 GameObject:
@@ -51645,7 +51647,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.11, y: 0.045, z: 0.016}
+  m_Size: {x: 0.125, y: 0.045, z: 0.016}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &1154648435
 MonoBehaviour:
@@ -51748,8 +51750,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HudButtonLabelCanvas
   initialText: HIDE UI
   textColor: {r: 0, g: 0, b: 0, a: 1}
-  fontSize: 20
-  canvasSizePixels: {x: 140, y: 45}
+  fontSize: 24
+  canvasSizePixels: {x: 125, y: 45}
   canvasWorldScale: 0.001
   distanceTowardCamera: 0.012
   sortingOrder: 200
@@ -54006,7 +54008,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.11, y: 0.045, z: 0.016}
+  m_Size: {x: 0.1, y: 0.045, z: 0.016}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &1185152236
 MonoBehaviour:
@@ -54109,8 +54111,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HudButtonLabelCanvas
   initialText: LIVE
   textColor: {r: 0, g: 0, b: 0, a: 1}
-  fontSize: 28
-  canvasSizePixels: {x: 110, y: 45}
+  fontSize: 24
+  canvasSizePixels: {x: 100, y: 45}
   canvasWorldScale: 0.001
   distanceTowardCamera: 0.012
   sortingOrder: 200
@@ -59162,7 +59164,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.11, y: 0.045, z: 0.016}
+  m_Size: {x: 0.135, y: 0.045, z: 0.016}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &1281950837
 MonoBehaviour:
@@ -59265,8 +59267,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HudButtonLabelCanvas
   initialText: PRESETS
   textColor: {r: 0, g: 0, b: 0, a: 1}
-  fontSize: 20
-  canvasSizePixels: {x: 140, y: 45}
+  fontSize: 24
+  canvasSizePixels: {x: 135, y: 45}
   canvasWorldScale: 0.001
   distanceTowardCamera: 0.012
   sortingOrder: 200
@@ -60445,7 +60447,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.11, y: 0.045, z: 0.012}
+  m_LocalScale: {x: 0.135, y: 0.045, z: 0.012}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1281950835}
@@ -64321,10 +64323,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HudGridManager
   columns: 16
   rows: 16
-  horizontalSpanDegrees: 100
-  verticalSpanDegrees: 80
+  horizontalSpanDegrees: 90
+  verticalSpanDegrees: 70
   gridCenterYawDegrees: 0
-  gridCenterPitchDegrees: 0
+  gridCenterPitchDegrees: -5
   sphereRadius: 2
   gutterDegrees: 0
   maximumDropDistanceDegrees: 18
@@ -64393,16 +64395,26 @@ MonoBehaviour:
     windows:
     - windowId: camera
       column: 1
-      row: 2
+      row: 3
       columnSpan: 10
       rowSpan: 11
+    - windowId: robot
+      column: 11
+      row: 3
+      columnSpan: 4
+      rowSpan: 6
+    - windowId: slam
+      column: 11
+      row: 9
+      columnSpan: 4
+      rowSpan: 5
   - presetId: agents
     displayName: Agents
     builtIn: 1
     windows:
     - windowId: agents
-      column: 1
-      row: 2
+      column: 3
+      row: 3
       columnSpan: 10
       rowSpan: 11
   maximumCustomPresets: 10
@@ -70107,7 +70119,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.125, y: 0.04, z: 0.03}
+  m_Size: {x: 0.115, y: 0.04, z: 0.03}
   m_Center: {x: 0, y: 0, z: -0.015}
 --- !u!224 &1546513617
 RectTransform:
@@ -70639,7 +70651,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07058824, b: 0.10980392, a: 0.78431374}
+  m_Color: {r: 0.06666667, g: 0.08235294, b: 0.07058824, a: 0.9607843}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -75016,7 +75028,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07450981, b: 0.11372549, a: 1}
+  m_Color: {r: 0.043137256, g: 0.05490196, b: 0.047058824, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -78483,7 +78495,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.11, y: 0.045, z: 0.012}
+  m_LocalScale: {x: 0.1, y: 0.045, z: 0.012}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1185152234}
@@ -80129,7 +80141,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.039215688, g: 0.07058824, b: 0.10980392, a: 0.78431374}
+  m_Color: {r: 0.06666667, g: 0.08235294, b: 0.07058824, a: 0.9607843}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -82220,7 +82232,10 @@ MonoBehaviour:
   presetsButton: {fileID: 1281950834}
   modeButton: {fileID: 1185152233}
   viewControlsButton: {fileID: 1154648432}
-  buttonWidth: 0.11
+  menuButtonWidth: 0.1
+  presetsButtonWidth: 0.135
+  modeButtonWidth: 0.1
+  viewControlsButtonWidth: 0.125
   spacing: 0.02
 --- !u!114 &1723309942
 MonoBehaviour:
@@ -97967,7 +97982,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.11, y: 0.045, z: 0.016}
+  m_Size: {x: 0.1, y: 0.045, z: 0.016}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &2062060165
 MonoBehaviour:
@@ -98070,8 +98085,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HudButtonLabelCanvas
   initialText: MENU
   textColor: {r: 0, g: 0, b: 0, a: 1}
-  fontSize: 28
-  canvasSizePixels: {x: 110, y: 45}
+  fontSize: 24
+  canvasSizePixels: {x: 100, y: 45}
   canvasWorldScale: 0.001
   distanceTowardCamera: 0.012
   sortingOrder: 200
@@ -101056,7 +101071,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.125, y: 0.04, z: 0.03}
+  m_Size: {x: 0.15, y: 0.04, z: 0.03}
   m_Center: {x: 0, y: 0, z: -0.015}
 --- !u!1 &2125325507
 GameObject:

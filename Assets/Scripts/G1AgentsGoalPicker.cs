@@ -184,8 +184,8 @@ public sealed class G1AgentsGoalPicker :
             return;
 
         Color color = targetAgent == TargetAgent.Robot
-            ? new Color32(80, 220, 255, 255)
-            : new Color32(255, 190, 65, 255);
+            ? HudDashboardTheme.Green
+            : HudDashboardTheme.Orange;
 
         agentsView.SetGoalMarker(
             SelectedMapPosition.x,

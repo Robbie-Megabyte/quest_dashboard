@@ -170,7 +170,7 @@ public class Hud3DButtonLabel : MonoBehaviour
         if (forceBlackText)
         {
             label.color =
-                Color.black;
+                HudDashboardTheme.TextPrimary;
         }
 
 

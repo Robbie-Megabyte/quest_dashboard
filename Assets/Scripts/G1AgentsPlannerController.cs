@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -17,12 +19,18 @@ public sealed class G1AgentsPlannerController :
     {
         public float x;
         public float y;
-        public float yaw;
+        public float yaw_deg;
         public float speed;
-        public float timeout;
-        public string gesture;
-        public string driver;
-        public string executor;
+    }
+
+    [Serializable]
+    private sealed class RobotGoalRequest
+    {
+        public float x;
+        public float y;
+        public float yaw_deg;
+        public float speed;
+        public string preview_id;
     }
 
     [Serializable]
@@ -31,12 +39,6 @@ public sealed class G1AgentsPlannerController :
         public float x;
         public float y;
         public float yaw_deg;
-    }
-
-    [Serializable]
-    private sealed class RobotConfirmationRequest
-    {
-        public string preview_id;
     }
 
     [Serializable]
@@ -52,8 +54,8 @@ public sealed class G1AgentsPlannerController :
         public bool success;
         public string error;
         public string preview_id;
-        public int waypoints;
-        public float length_m;
+        public string request_id;
+        public float expires_in;
     }
 
     [Serializable]
@@ -153,28 +155,32 @@ public sealed class G1AgentsPlannerController :
     private bool eventSubscribed;
     private bool requestBusy;
     private string robotPreviewId;
+    private RobotPreviewRequest robotPreviewGoal;
     private string carPreviewRequestId;
     private bool carPreviewReady;
     private bool carPreviewAcknowledged;
     private int carPreviewBaselineRevision;
 
     private readonly Color robotColor =
-        new Color32(28, 142, 184, 255);
+        HudDashboardTheme.Green;
 
     private readonly Color vehicleColor =
-        new Color32(183, 119, 24, 255);
+        HudDashboardTheme.Orange;
 
     private readonly Color actionColor =
-        new Color32(35, 95, 145, 255);
+        HudDashboardTheme.GreenDim;
 
     private readonly Color readyColor =
-        new Color32(31, 145, 79, 255);
+        HudDashboardTheme.Green;
 
     private readonly Color dangerColor =
-        new Color32(176, 54, 54, 255);
+        HudDashboardTheme.Red;
 
     private readonly Color disabledColor =
-        new Color32(55, 64, 72, 255);
+        HudDashboardTheme.Control;
+
+    private readonly Color viewControlColor =
+        HudDashboardTheme.GreenDim;
 
     private void Awake()
     {
@@ -378,23 +384,13 @@ public sealed class G1AgentsPlannerController :
             G1AgentsGoalPicker.TargetAgent.Robot)
         {
             RobotPreviewRequest payload =
-                new RobotPreviewRequest
-                {
-                    x = goalPicker.SelectedMapPosition.x,
-                    y = goalPicker.SelectedMapPosition.y,
-                    yaw =
-                        goalPicker.SelectedYawDegrees *
-                        Mathf.Deg2Rad,
-                    speed = robotSpeed,
-                    timeout = robotTimeoutSeconds,
-                    gesture = "none",
-                    driver = "legacy",
-                    executor = "native_1102"
-                };
+                CurrentRobotGoal();
+
+            robotPreviewGoal = payload;
 
             StartCoroutine(
                 PostJson(
-                    "/api/nav/preview",
+                    "/api/robot/path/preview",
                     JsonUtility.ToJson(payload),
                     HandleRobotPreview
                 )
@@ -424,11 +420,20 @@ public sealed class G1AgentsPlannerController :
         RobotPreviewResponse response =
             ParseResponse<RobotPreviewResponse>(json);
 
+        string previewId =
+            !string.IsNullOrWhiteSpace(
+                response?.preview_id)
+                ? response.preview_id
+                : response?.request_id;
+
         if (!transportSuccess ||
             response == null ||
             !response.success ||
-            string.IsNullOrWhiteSpace(response.preview_id))
+            string.IsNullOrWhiteSpace(previewId))
         {
+            robotPreviewId = null;
+            robotPreviewGoal = null;
+
             SetStatus(
                 "G1 preview failed: " +
                 ResponseError(response?.error, transportError)
@@ -437,16 +442,157 @@ public sealed class G1AgentsPlannerController :
             return;
         }
 
-        robotPreviewId = response.preview_id;
+        List<Vector2> route =
+            ParseRobotRoutePoints(json);
+
+        float routeLength = 0.0f;
+
+        for (int index = 1;
+             index < route.Count;
+             index++)
+        {
+            routeLength +=
+                Vector2.Distance(
+                    route[index - 1],
+                    route[index]);
+        }
+
+        if (route.Count < 2)
+        {
+            robotPreviewId = null;
+            robotPreviewGoal = null;
+            agentsView?.ClearPlannerPath();
+
+            SetStatus(
+                "G1 preview failed: planner returned " +
+                "fewer than two valid route points."
+            );
+            LogWarning(statusLabel.text);
+            return;
+        }
+
+        robotPreviewId = previewId;
+        agentsView?.SetPlannerPath(
+            route,
+            HudDashboardTheme.Green
+        );
 
         SetStatus(
             "G1 route ready: " +
-            response.waypoints + " waypoints, " +
-            response.length_m.ToString("F2") +
-            " m. Hold GO to confirm."
+            route.Count + " points, " +
+            routeLength.ToString("F2") +
+            " m." +
+            (commandConfirmationEnabled
+                ? " Hold GO to confirm."
+                : " GO remains safety-locked.")
         );
 
-        Log("G1 preview ready id=" + robotPreviewId);
+        Log(
+            "G1 preview ready id=" +
+            robotPreviewId +
+            " points=" +
+            route.Count
+        );
+    }
+
+    private static List<Vector2> ParseRobotRoutePoints(
+        string json)
+    {
+        List<Vector2> points =
+            new List<Vector2>();
+
+        if (string.IsNullOrWhiteSpace(json))
+            return points;
+
+        int routeKey =
+            json.IndexOf(
+                "\"route\"",
+                StringComparison.Ordinal);
+
+        if (routeKey < 0)
+            return points;
+
+        int pointsKey =
+            json.IndexOf(
+                "\"points\"",
+                routeKey,
+                StringComparison.Ordinal);
+
+        if (pointsKey < 0)
+            return points;
+
+        int outerStart =
+            json.IndexOf('[', pointsKey);
+
+        if (outerStart < 0)
+            return points;
+
+        int cursor = outerStart + 1;
+
+        while (cursor < json.Length)
+        {
+            while (
+                cursor < json.Length &&
+                (char.IsWhiteSpace(json[cursor]) ||
+                 json[cursor] == ','))
+            {
+                cursor++;
+            }
+
+            if (cursor >= json.Length ||
+                json[cursor] == ']')
+            {
+                break;
+            }
+
+            if (json[cursor] != '[')
+                break;
+
+            int separator =
+                json.IndexOf(',', cursor + 1);
+
+            if (separator < 0)
+                break;
+
+            int pointEnd =
+                json.IndexOf(']', separator + 1);
+
+            if (pointEnd < 0)
+                break;
+
+            string xText =
+                json.Substring(
+                    cursor + 1,
+                    separator - cursor - 1);
+
+            string yText =
+                json.Substring(
+                    separator + 1,
+                    pointEnd - separator - 1);
+
+            if (
+                float.TryParse(
+                    xText,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out float x) &&
+                float.TryParse(
+                    yText,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out float y) &&
+                !float.IsNaN(x) &&
+                !float.IsInfinity(x) &&
+                !float.IsNaN(y) &&
+                !float.IsInfinity(y))
+            {
+                points.Add(new Vector2(x, y));
+            }
+
+            cursor = pointEnd + 1;
+        }
+
+        return points;
     }
 
     private void HandleCarPreview(
@@ -525,15 +671,43 @@ public sealed class G1AgentsPlannerController :
         if (goalPicker.SelectedAgent ==
             G1AgentsGoalPicker.TargetAgent.Robot)
         {
-            SetStatus("Checking G1 navigation preflight...");
+            if (robotPreviewGoal == null ||
+                string.IsNullOrWhiteSpace(
+                    robotPreviewId))
+            {
+                requestBusy = false;
+                InvalidatePreview();
+
+                SetStatus(
+                    "The G1 preview expired locally. " +
+                    "Request a new preview."
+                );
+                return;
+            }
+
+            RobotGoalRequest payload =
+                new RobotGoalRequest
+                {
+                    x = robotPreviewGoal.x,
+                    y = robotPreviewGoal.y,
+                    yaw_deg =
+                        robotPreviewGoal.yaw_deg,
+                    speed =
+                        robotPreviewGoal.speed,
+                    preview_id =
+                        robotPreviewId
+                };
+
+            SetStatus(
+                "Confirming preview and starting " +
+                "G1 navigation..."
+            );
 
             StartCoroutine(
-                GetJson(
-                    "/api/nav/preflight" +
-                    "?wait_s=2.5" +
-                    "&driver=legacy" +
-                    "&executor=native_1102",
-                    HandleRobotPreflight
+                PostJson(
+                    "/api/robot/goal",
+                    JsonUtility.ToJson(payload),
+                    HandleRobotGoal
                 )
             );
         }
@@ -549,44 +723,6 @@ public sealed class G1AgentsPlannerController :
                 )
             );
         }
-    }
-
-    private void HandleRobotPreflight(
-        bool transportSuccess,
-        string json,
-        string transportError)
-    {
-        BasicResponse response =
-            ParseResponse<BasicResponse>(json);
-
-        if (!transportSuccess ||
-            response == null ||
-            !response.success)
-        {
-            requestBusy = false;
-            SetStatus(
-                "G1 preflight rejected: " +
-                ResponseError(response?.error, transportError)
-            );
-            LogWarning(statusLabel.text);
-            return;
-        }
-
-        RobotConfirmationRequest payload =
-            new RobotConfirmationRequest
-            {
-                preview_id = robotPreviewId
-            };
-
-        SetStatus("Preflight passed. Starting G1 navigation...");
-
-        StartCoroutine(
-            PostJson(
-                "/api/nav/goal",
-                JsonUtility.ToJson(payload),
-                HandleRobotGoal
-            )
-        );
     }
 
     private void HandleRobotGoal(
@@ -609,6 +745,8 @@ public sealed class G1AgentsPlannerController :
             );
             LogWarning(statusLabel.text);
             robotPreviewId = null;
+            robotPreviewGoal = null;
+            agentsView?.ClearPlannerPath();
             return;
         }
 
@@ -616,6 +754,7 @@ public sealed class G1AgentsPlannerController :
         Log("G1 navigation started");
 
         robotPreviewId = null;
+        robotPreviewGoal = null;
         goalPicker.ClearSelection();
     }
 
@@ -664,38 +803,18 @@ public sealed class G1AgentsPlannerController :
 
     private void CancelPendingRobotPreview()
     {
-        if (string.IsNullOrWhiteSpace(robotPreviewId) ||
-            !HasConnection())
-        {
-            return;
-        }
-
-        StartCoroutine(
-            PostJson(
-                "/api/nav/preview/cancel",
-                "{}",
-                HandlePreviewCancellation
-            )
-        );
-    }
-
-    private void HandlePreviewCancellation(
-        bool transportSuccess,
-        string json,
-        string transportError)
-    {
-        if (!transportSuccess)
-        {
-            LogWarning(
-                "preview cancellation failed: " +
-                transportError
-            );
-        }
+        /*
+         * The current robot backend replaces an older pending
+         * preview whenever a new one is requested and expires
+         * unused previews after 120 seconds. It exposes no
+         * preview-cancellation endpoint.
+         */
     }
 
     private void InvalidatePreview()
     {
         robotPreviewId = null;
+        robotPreviewGoal = null;
         carPreviewRequestId = null;
         carPreviewReady = false;
         carPreviewAcknowledged = false;
@@ -772,6 +891,18 @@ public sealed class G1AgentsPlannerController :
                 out _,
                 out _
             );
+    }
+
+    private RobotPreviewRequest CurrentRobotGoal()
+    {
+        return new RobotPreviewRequest
+        {
+            x = goalPicker.SelectedMapPosition.x,
+            y = goalPicker.SelectedMapPosition.y,
+            yaw_deg =
+                goalPicker.SelectedYawDegrees,
+            speed = robotSpeed
+        };
     }
 
     private CarGoalRequest CurrentCarGoal()
@@ -949,7 +1080,8 @@ public sealed class G1AgentsPlannerController :
         uiRoot.offsetMax = Vector2.zero;
 
         Image background = rootObject.GetComponent<Image>();
-        background.color = new Color32(5, 15, 24, 235);
+        background.color =
+            HudDashboardTheme.PanelTranslucent;
         background.raycastTarget = false;
 
         statusLabel = CreateText(
@@ -1058,7 +1190,10 @@ public sealed class G1AgentsPlannerController :
         viewUiRoot.offsetMax = Vector2.zero;
 
         Image background = rootObject.GetComponent<Image>();
-        background.color = new Color32(5, 15, 24, 220);
+        background.color =
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Panel,
+                0.90f);
         background.raycastTarget = false;
 
         viewModeButton = CreateButton(
@@ -1111,7 +1246,24 @@ public sealed class G1AgentsPlannerController :
         resetViewButton.onClick.AddListener(
             agentsView.ResetCameraView
         );
+
+        ApplyViewControlTypography(viewModeLabel);
+        ApplyViewControlTypography(zoomInLabel);
+        ApplyViewControlTypography(zoomOutLabel);
+        ApplyViewControlTypography(resetViewLabel);
     }
+
+
+    private static void ApplyViewControlTypography(
+        TMP_Text label)
+    {
+        if (label == null)
+            return;
+
+        label.color = Color.white;
+        label.fontStyle = FontStyles.Bold;
+    }
+
 
     private void BuildMapControls(RectTransform parent)
     {
@@ -1137,7 +1289,10 @@ public sealed class G1AgentsPlannerController :
         mapUiRoot.offsetMax = Vector2.zero;
 
         Image background = rootObject.GetComponent<Image>();
-        background.color = new Color32(5, 15, 24, 220);
+        background.color =
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Panel,
+                0.90f);
         background.raycastTarget = false;
 
         pointCloudToggleButton = CreateButton(
@@ -1201,7 +1356,7 @@ public sealed class G1AgentsPlannerController :
 
         text.fontSize = fontSize;
         text.alignment = alignment;
-        text.color = Color.white;
+        text.color = HudDashboardTheme.TextPrimary;
         text.enableWordWrapping = false;
         text.overflowMode = TextOverflowModes.Ellipsis;
         text.raycastTarget = false;
@@ -1239,7 +1394,7 @@ public sealed class G1AgentsPlannerController :
         rect.offsetMax = Vector2.zero;
 
         image = buttonObject.GetComponent<Image>();
-        image.color = Color.white;
+        image.color = HudDashboardTheme.Control;
         image.raycastTarget = true;
 
         Button button = buttonObject.GetComponent<Button>();
@@ -1254,12 +1409,20 @@ public sealed class G1AgentsPlannerController :
         ColorBlock colors = button.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor =
-            new Color(1.12f, 1.12f, 1.12f, 1.0f);
+            Color.Lerp(
+                Color.white,
+                HudDashboardTheme.Green,
+                0.24f);
         colors.pressedColor =
-            new Color(0.72f, 0.72f, 0.72f, 1.0f);
+            Color.Lerp(
+                Color.white,
+                HudDashboardTheme.Green,
+                0.48f);
         colors.selectedColor = Color.white;
         colors.disabledColor =
-            new Color(0.45f, 0.45f, 0.45f, 0.72f);
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Control,
+                0.72f);
         colors.colorMultiplier = 1.0f;
         button.colors = colors;
 
@@ -1337,7 +1500,7 @@ public sealed class G1AgentsPlannerController :
 
         Color viewColor =
             viewInteractionAllowed
-                ? actionColor
+                ? viewControlColor
                 : disabledColor;
 
         SetButtonColor(viewModeImage, viewColor);

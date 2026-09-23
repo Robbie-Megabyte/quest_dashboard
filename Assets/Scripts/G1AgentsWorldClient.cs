@@ -271,7 +271,10 @@ public sealed class G1AgentsWorldClient : MonoBehaviour
             List<Vector2> points = ToVectorPoints(
                 vehicle.path
             );
-            agentsView?.SetPlannerPath(points);
+            agentsView?.SetPlannerPath(
+                points,
+                HudDashboardTheme.Orange
+            );
             renderedPathRevision = vehicle.path_revision;
 
             if (verboseLogging)

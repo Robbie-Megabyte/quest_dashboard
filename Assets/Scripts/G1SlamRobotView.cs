@@ -462,14 +462,26 @@ public sealed class G1SlamRobotView : MonoBehaviour
         );
 
         CreateDirectionalLight(
-            "Key",
-            new Vector3(45.0f, -35.0f, 0.0f),
-            1.15f
+            "FrontLeft",
+            new Vector3(35.0f, -45.0f, 0.0f),
+            0.45f
         );
 
         CreateDirectionalLight(
-            "Fill",
-            new Vector3(25.0f, 145.0f, 0.0f),
+            "FrontRight",
+            new Vector3(35.0f, 45.0f, 0.0f),
+            0.45f
+        );
+
+        CreateDirectionalLight(
+            "RearRight",
+            new Vector3(35.0f, 135.0f, 0.0f),
+            0.45f
+        );
+
+        CreateDirectionalLight(
+            "RearLeft",
+            new Vector3(35.0f, -135.0f, 0.0f),
             0.45f
         );
     }

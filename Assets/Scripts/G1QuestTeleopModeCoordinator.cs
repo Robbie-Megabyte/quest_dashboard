@@ -75,6 +75,8 @@ public sealed class G1QuestTeleopModeCoordinator :
 
     public bool CanConfirmEntry { get; private set; }
 
+    public bool CanReleaseFaultHold { get; private set; }
+
     public float AlignmentSecondsRemaining
     {
         get
@@ -124,6 +126,7 @@ public sealed class G1QuestTeleopModeCoordinator :
     private bool trackedHandModeActive;
     private float controllersBecameReadyAt = -1f;
     private bool poseHoldLocomotionArmed;
+    private bool faultPanelOpenedForCurrentFault;
 
     private void Awake()
     {
@@ -199,6 +202,12 @@ public sealed class G1QuestTeleopModeCoordinator :
     {
         RefreshState(false);
 
+        if (State == ModeState.Fault)
+        {
+            ReleaseFaultHold();
+            return;
+        }
+
         if (!CanConfirmEntry)
         {
             EntryPanelOpen = true;
@@ -230,6 +239,74 @@ public sealed class G1QuestTeleopModeCoordinator :
         simulatedTeleopActive = false;
 
         RefreshState(true);
+    }
+
+    private void ReleaseFaultHold()
+    {
+        string readinessReason;
+
+        if (!TryEvaluateFaultReleaseReadiness(
+                out readinessReason))
+        {
+            EntryPanelOpen = true;
+
+            SetState(
+                ModeState.Fault,
+                "SAFETY FAULT · ARMS HELD",
+                GetSafetyFaultDescription(
+                    readinessReason),
+                true);
+
+            return;
+        }
+
+        if (dryRun)
+        {
+            EntryPanelOpen = true;
+
+            SetState(
+                ModeState.Fault,
+                "FAULT RELEASE BLOCKED",
+                "Dry run cannot release real arm ownership.",
+                true);
+
+            return;
+        }
+
+        string error = null;
+
+        if (
+            locomotionSender == null ||
+            !locomotionSender.TrySendTeleopAction(
+                "HAND_BACK_ARMS",
+                out error)
+        )
+        {
+            EntryPanelOpen = true;
+
+            SetState(
+                ModeState.Fault,
+                "RELEASE SEND FAILED",
+                SafeText(
+                    error,
+                    "Quest action transport is unavailable."),
+                true);
+
+            return;
+        }
+
+        EntryPanelOpen = false;
+        BeginPendingAction(
+            "HAND_BACK_ARMS");
+
+        SetLocomotionAllowed(false);
+
+        SetState(
+            ModeState.Transition,
+            "RELEASING ARMS",
+            "The frozen target is being held while ownership " +
+                "fades to Regular mode.",
+            true);
     }
 
     /*
@@ -426,9 +503,19 @@ public sealed class G1QuestTeleopModeCoordinator :
         bool forceLog)
     {
         ResolveReferences();
+        CanReleaseFaultHold = false;
 
         string serverState =
             GetServerState();
+
+        bool safetyFaultActive =
+            string.Equals(
+                serverState,
+                "SAFETY_FAULT_HOLD",
+                StringComparison.Ordinal);
+
+        if (!safetyFaultActive)
+            faultPanelOpenedForCurrentFault = false;
 
         if (!string.Equals(
                 serverState,
@@ -460,8 +547,16 @@ public sealed class G1QuestTeleopModeCoordinator :
                     "HAND_BACK_ARMS"
                     ? (
                         serverStateAvailable &&
-                        !IsServerTeleopActive(
-                            serverState)
+                        (
+                            string.Equals(
+                                serverState,
+                                "ARM_RAMP_DOWN",
+                                StringComparison.Ordinal) ||
+                            string.Equals(
+                                serverState,
+                                "LOCOMOTION_READY",
+                                StringComparison.Ordinal)
+                        )
                     )
                     : pendingActionOperation ==
                         "HOLD_XR_POSE"
@@ -522,6 +617,30 @@ public sealed class G1QuestTeleopModeCoordinator :
                 pendingActionOperation;
 
             ClearPendingAction();
+
+            if (
+                timedOutOperation ==
+                    "HAND_BACK_ARMS" &&
+                safetyFaultActive
+            )
+            {
+                string releaseReason;
+                CanReleaseFaultHold =
+                    TryEvaluateFaultReleaseReadiness(
+                        out releaseReason);
+                EntryPanelOpen = true;
+
+                SetLocomotionAllowed(false);
+
+                SetState(
+                    ModeState.Fault,
+                    "RELEASE NOT CONFIRMED",
+                    GetSafetyFaultDescription(
+                        releaseReason),
+                    true);
+
+                return;
+            }
 
             if (IsServerTeleopActive(serverState))
             {
@@ -654,21 +773,30 @@ public sealed class G1QuestTeleopModeCoordinator :
             return;
         }
 
-        if (string.Equals(
-                serverState,
-                "SAFETY_FAULT_HOLD",
-                StringComparison.Ordinal))
+        if (safetyFaultActive)
         {
             countdownEndsAt = -1f;
             CanConfirmEntry = false;
             readinessBecameTrueAt = -1f;
 
+            string releaseReason;
+            CanReleaseFaultHold =
+                TryEvaluateFaultReleaseReadiness(
+                    out releaseReason);
+
+            if (!faultPanelOpenedForCurrentFault)
+            {
+                EntryPanelOpen = true;
+                faultPanelOpenedForCurrentFault = true;
+            }
+
             SetLocomotionAllowed(false);
 
             SetState(
                 ModeState.Fault,
-                "SAFETY HOLD",
-                GetSafetyFaultDescription(),
+                "SAFETY FAULT · ARMS HELD",
+                GetSafetyFaultDescription(
+                    releaseReason),
                 forceLog);
 
             return;
@@ -1213,21 +1341,132 @@ public sealed class G1QuestTeleopModeCoordinator :
             string.Empty;
     }
 
-    private string GetSafetyFaultDescription()
+    private bool TryEvaluateFaultReleaseReadiness(
+        out string reason)
+    {
+        reason = "Waiting for fresh controller telemetry.";
+
+        if (telemetryClient == null ||
+            !telemetryClient.HasData ||
+            !telemetryClient.TransportFresh)
+        {
+            return false;
+        }
+
+        G1DashboardTelemetryClient.Envelope envelope =
+            telemetryClient.Latest;
+
+        if (envelope == null ||
+            envelope.connection == null ||
+            !envelope.connection.online)
+        {
+            reason = "Controller telemetry is offline.";
+            return false;
+        }
+
+        if (envelope.control == null ||
+            !string.Equals(
+                envelope.control.state,
+                "SAFETY_FAULT_HOLD",
+                StringComparison.Ordinal))
+        {
+            reason = "The controller is not reporting fault hold.";
+            return false;
+        }
+
+        if (envelope.actions == null ||
+            !envelope.actions.request_channel_enabled)
+        {
+            reason = "Controller action channel is unavailable.";
+            return false;
+        }
+
+        G1DashboardTelemetryClient.EngagementConditions conditions =
+            envelope.actions.engagement_conditions;
+
+        if (conditions == null ||
+            !conditions.stop_gate_ready)
+        {
+            reason = "Arms remain frozen. Wait for the full-stop gate.";
+            return false;
+        }
+
+        G1DashboardTelemetryClient.XrHandover handover =
+            envelope.actions.xr_handover;
+
+        if (handover == null ||
+            !string.Equals(
+                handover.operation,
+                "HAND_BACK_ARMS",
+                StringComparison.Ordinal))
+        {
+            reason = "Controlled arm release is unavailable.";
+            return false;
+        }
+
+        if (!handover.available)
+        {
+            reason = SafeText(
+                handover.reason,
+                "Controlled arm release is locked.");
+            return false;
+        }
+
+        if (locomotionSender == null)
+        {
+            reason = "Quest action transport is unavailable.";
+            return false;
+        }
+
+        reason =
+            "Full stop confirmed. Release requires an explicit hold.";
+        return true;
+    }
+
+    private string GetSafetyFaultDescription(
+        string releaseReason)
     {
         if (telemetryClient != null &&
             telemetryClient.Latest != null &&
             telemetryClient.Latest.control != null)
         {
-            return SafeText(
-                telemetryClient
-                    .Latest
-                    .control
-                    .safety_fault,
+            G1DashboardTelemetryClient.Envelope envelope =
+                telemetryClient.Latest;
+
+            string fault = SafeText(
+                envelope.control.safety_fault,
                 "The robot controller is holding a safety fault.");
+
+            int ownershipPercent =
+                Mathf.RoundToInt(
+                    Mathf.Clamp01(
+                        envelope.control.arm_ownership) *
+                    100f);
+
+            string fingerMode =
+                envelope.hands != null
+                    ? SafeText(
+                        envelope.hands.mode,
+                        "HELD")
+                    : "HELD";
+
+            return
+                fault +
+                "\nARMS FROZEN · OWNERSHIP " +
+                ownershipPercent +
+                "% · FINGERS " +
+                fingerMode.ToUpperInvariant() +
+                "\n" +
+                SafeText(
+                    releaseReason,
+                    "Release remains locked.");
         }
 
-        return "The robot controller is holding a safety fault.";
+        return
+            "The robot controller is holding a safety fault.\n" +
+            SafeText(
+                releaseReason,
+                "Release remains locked.");
     }
 
     private void SetLocomotionAllowed(

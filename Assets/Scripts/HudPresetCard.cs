@@ -63,6 +63,7 @@ public sealed class HudPresetCard : MonoBehaviour
 
     private void Awake()
     {
+        ApplyDashboardTheme();
         ResolveReferences();
         BuildOrFindVisuals();
         ApplyCardData();
@@ -148,6 +149,15 @@ public sealed class HudPresetCard : MonoBehaviour
         menuCoordinator.ApplyPresetAndCloseById(
             presetId
         );
+    }
+
+
+    private void ApplyDashboardTheme()
+    {
+        normalColor = HudDashboardTheme.Control;
+        hoverColor = HudDashboardTheme.ControlHover;
+        nameColor = HudDashboardTheme.TextPrimary;
+        badgeColor = HudDashboardTheme.Green;
     }
 
 
@@ -310,6 +320,7 @@ public sealed class HudPresetCard : MonoBehaviour
             TextAlignmentOptions.MidlineLeft;
 
         nameText.fontSize = 28.0f;
+        nameText.fontStyle = FontStyles.Bold;
         nameText.color = nameColor;
         nameText.raycastTarget = false;
         nameText.textWrappingMode =
@@ -347,6 +358,7 @@ public sealed class HudPresetCard : MonoBehaviour
             TextAlignmentOptions.Center;
 
         badgeText.fontSize = 19.0f;
+        badgeText.fontStyle = FontStyles.Bold;
         badgeText.color = badgeColor;
         badgeText.raycastTarget = false;
         badgeText.textWrappingMode =

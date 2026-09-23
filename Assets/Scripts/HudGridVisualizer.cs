@@ -48,6 +48,14 @@ public class HudGridVisualizer : MonoBehaviour
         0.015f;
 
 
+    [Header("Layering")]
+    [Tooltip("Base grid renders behind window canvases.")]
+    public int gridSortingOrder = -100;
+
+    [Tooltip("Active move/resize preview remains visible above windows.")]
+    public int previewSortingOrder = 100;
+
+
     [Header("Curve Quality")]
     [Range(4, 64)]
     public int curveSegments =
@@ -78,6 +86,16 @@ public class HudGridVisualizer : MonoBehaviour
 
     void Awake()
     {
+        gridColor =
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Green,
+                0.22f);
+
+        previewColor =
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Green,
+                0.95f);
+
         ResolveReferences();
     }
 
@@ -322,7 +340,8 @@ public class HudGridVisualizer : MonoBehaviour
                 CreateLineRenderer(
                     $"Grid_V_{boundary}",
                     gridColor,
-                    gridLineWidth
+                    gridLineWidth,
+                    gridSortingOrder
                 );
 
 
@@ -347,7 +366,8 @@ public class HudGridVisualizer : MonoBehaviour
                 CreateLineRenderer(
                     $"Grid_H_{boundary}",
                     gridColor,
-                    gridLineWidth
+                    gridLineWidth,
+                    gridSortingOrder
                 );
 
 
@@ -386,7 +406,8 @@ public class HudGridVisualizer : MonoBehaviour
     private LineRenderer CreateLineRenderer(
         string objectName,
         Color color,
-        float width)
+        float width,
+        int sortingOrder)
     {
         GameObject lineObject =
             new GameObject(
@@ -428,6 +449,9 @@ public class HudGridVisualizer : MonoBehaviour
 
         line.numCornerVertices =
             2;
+
+        line.sortingOrder =
+            sortingOrder;
 
 
         if (lineMaterial != null)
@@ -565,7 +589,8 @@ public class HudGridVisualizer : MonoBehaviour
             CreateLineRenderer(
                 "Grid_DropPreview",
                 previewColor,
-                previewLineWidth
+                previewLineWidth,
+                previewSortingOrder
             );
 
 

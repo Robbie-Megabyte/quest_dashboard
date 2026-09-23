@@ -114,6 +114,7 @@ public class HudWindowPaletteItem : MonoBehaviour
 
     private void Awake()
     {
+        ApplyDashboardTheme();
         ResolveReferences();
         ConfigureListInteraction();
         BuildOrFindVisuals();
@@ -171,6 +172,17 @@ public class HudWindowPaletteItem : MonoBehaviour
         ConfigureListInteraction();
         BuildOrFindVisuals();
         ApplyAppearance();
+    }
+
+
+    private void ApplyDashboardTheme()
+    {
+        normalColor = HudDashboardTheme.Control;
+        hoverColor = HudDashboardTheme.ControlHover;
+        openColor = HudDashboardTheme.GreenDim;
+        nameColor = HudDashboardTheme.TextPrimary;
+        availableBadgeColor = HudDashboardTheme.TextMuted;
+        openBadgeColor = HudDashboardTheme.Green;
     }
 
 
@@ -507,6 +519,7 @@ public class HudWindowPaletteItem : MonoBehaviour
             TextAlignmentOptions.MidlineLeft;
 
         nameText.fontSize = 28.0f;
+        nameText.fontStyle = FontStyles.Bold;
         nameText.color = nameColor;
         nameText.raycastTarget = false;
 
@@ -545,6 +558,7 @@ public class HudWindowPaletteItem : MonoBehaviour
             TextAlignmentOptions.Center;
 
         badgeText.fontSize = 18.0f;
+        badgeText.fontStyle = FontStyles.Bold;
         badgeText.raycastTarget = false;
 
         badgeText.textWrappingMode =

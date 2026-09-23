@@ -204,7 +204,7 @@ public sealed class G1CameraWindowController :
         mainViewport = CreateRectWithBackground(
             "CameraMainViewport_Runtime",
             windowCanvas,
-            new Color(0f, 0f, 0f, 0.92f),
+            HudDashboardTheme.Background,
             true);
 
         mainViewport.anchorMin = Vector2.zero;
@@ -402,11 +402,7 @@ public sealed class G1CameraWindowController :
             CreateRectWithBackground(
                 "Visual",
                 targetObject.transform,
-                new Color(
-                    0.035f,
-                    0.055f,
-                    0.075f,
-                    1f),
+                HudDashboardTheme.Control,
                 false);
 
         visual.anchorMin = Vector2.zero;
@@ -441,10 +437,8 @@ public sealed class G1CameraWindowController :
                 <Image>();
 
         selectedImage.color =
-            new Color(
-                0f,
-                0.68f,
-                1f,
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Green,
                 0.28f);
 
         selectedImage.raycastTarget = false;
@@ -460,9 +454,9 @@ public sealed class G1CameraWindowController :
         ColorBlock colors = toggle.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor =
-            new Color(0.82f, 0.94f, 1f, 1f);
+            Color.Lerp(Color.white, HudDashboardTheme.Green, 0.25f);
         colors.pressedColor =
-            new Color(0.45f, 0.78f, 1f, 1f);
+            Color.Lerp(Color.white, HudDashboardTheme.Green, 0.48f);
         colors.selectedColor = Color.white;
         toggle.colors = colors;
 
@@ -512,11 +506,7 @@ public sealed class G1CameraWindowController :
             CreateRectWithBackground(
                 "Visual",
                 targetObject.transform,
-                new Color(
-                    0.055f,
-                    0.075f,
-                    0.095f,
-                    1f),
+                HudDashboardTheme.Control,
                 false);
 
         visual.anchorMin = Vector2.zero;
@@ -539,10 +529,8 @@ public sealed class G1CameraWindowController :
                 <Image>();
 
         selectedImage.color =
-            new Color(
-                0f,
-                0.68f,
-                1f,
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Green,
                 0.30f);
 
         selectedImage.raycastTarget = false;
@@ -564,7 +552,7 @@ public sealed class G1CameraWindowController :
         label.fontStyle = FontStyles.Bold;
         label.alignment =
             TextAlignmentOptions.Center;
-        label.color = Color.white;
+        label.color = HudDashboardTheme.TextPrimary;
         label.raycastTarget = false;
         label.textWrappingMode =
             TextWrappingModes.NoWrap;
@@ -583,9 +571,9 @@ public sealed class G1CameraWindowController :
         ColorBlock colors = toggle.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor =
-            new Color(0.82f, 0.94f, 1f, 1f);
+            Color.Lerp(Color.white, HudDashboardTheme.Green, 0.25f);
         colors.pressedColor =
-            new Color(0.45f, 0.78f, 1f, 1f);
+            Color.Lerp(Color.white, HudDashboardTheme.Green, 0.48f);
         colors.selectedColor = Color.white;
         toggle.colors = colors;
 

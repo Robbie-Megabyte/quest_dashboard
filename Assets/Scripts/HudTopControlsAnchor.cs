@@ -7,11 +7,11 @@ public sealed class HudTopControlsAnchor : MonoBehaviour
     private HudGridManager gridManager;
 
     [Tooltip(
-        "Angular distance from the bottom of the HUD grid " +
+        "Angular distance from the top of the HUD grid " +
         "to the center of the teleop button."
     )]
     [SerializeField]
-    private float gapBelowGridDegrees = 6f;
+    private float gapAboveGridDegrees = 3f;
 
     [SerializeField]
     private float surfaceOffsetTowardUser = 0.03f;
@@ -41,7 +41,7 @@ public sealed class HudTopControlsAnchor : MonoBehaviour
         float surfaceOffset)
     {
         gridManager = manager;
-        gapBelowGridDegrees = gapDegrees;
+        gapAboveGridDegrees = gapDegrees;
         surfaceOffsetTowardUser = surfaceOffset;
 
         ApplyPose();
@@ -59,9 +59,9 @@ public sealed class HudTopControlsAnchor : MonoBehaviour
             gridManager.gridCenterYawDegrees;
 
         float pitchDegrees =
-            gridManager.gridCenterPitchDegrees -
-            gridManager.verticalSpanDegrees * 0.5f -
-            gapBelowGridDegrees;
+            gridManager.gridCenterPitchDegrees +
+            gridManager.verticalSpanDegrees * 0.5f +
+            gapAboveGridDegrees;
 
         float yaw =
             yawDegrees * Mathf.Deg2Rad;

@@ -183,6 +183,7 @@ public sealed class G1AgentsWindowView :
 
     private void Awake()
     {
+        backgroundColor = HudDashboardTheme.Background;
         ResolveReferences();
         BuildRuntimeScene();
 
@@ -842,12 +843,26 @@ public sealed class G1AgentsWindowView :
 
 
     public void SetPlannerPath(
-        IReadOnlyList<Vector2> points)
+        IReadOnlyList<Vector2> points,
+        Color pathColor)
     {
         EnsurePlannerPathObject();
 
         if (plannerPathMesh == null)
             return;
+
+        if (plannerPathMaterial != null)
+        {
+            if (plannerPathMaterial.HasProperty("_BaseColor"))
+            {
+                plannerPathMaterial.SetColor(
+                    "_BaseColor",
+                    pathColor
+                );
+            }
+
+            plannerPathMaterial.color = pathColor;
+        }
 
         plannerPathMesh.Clear();
 
@@ -1498,34 +1513,19 @@ public sealed class G1AgentsWindowView :
     {
         robotMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    55,
-                    211,
-                    255,
-                    255
-                ),
+                HudDashboardTheme.Green,
                 true
             );
 
         floorMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    12,
-                    27,
-                    39,
-                    255
-                ),
+                HudDashboardTheme.Background,
                 true
             );
 
         gridMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    41,
-                    83,
-                    106,
-                    255
-                ),
+                HudDashboardTheme.GreenDim,
                 true
             );
 
@@ -1545,34 +1545,19 @@ public sealed class G1AgentsWindowView :
 
         vehicleLidarMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    255,
-                    196,
-                    80,
-                    255
-                ),
+                HudDashboardTheme.Orange,
                 true
             );
 
         plannerPathMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    255,
-                    190,
-                    65,
-                    255
-                ),
+                HudDashboardTheme.Orange,
                 true
             );
 
         goalMarkerMaterial =
             CreateRuntimeMaterial(
-                new Color32(
-                    255,
-                    196,
-                    80,
-                    255
-                ),
+                HudDashboardTheme.Orange,
                 true
             );
 
@@ -2028,7 +2013,7 @@ public sealed class G1AgentsWindowView :
                     robotRoot,
                     "G1 ROBOT",
                     2.05f,
-                    new Color32(110, 230, 255, 255),
+                    HudDashboardTheme.Green,
                     out robotStatusDotMaterial
                 );
 
@@ -2119,12 +2104,7 @@ public sealed class G1AgentsWindowView :
                 robotRoot,
                 "G1 ROBOT",
                 2.05f,
-                new Color32(
-                    110,
-                    230,
-                    255,
-                    255
-                ),
+                HudDashboardTheme.Green,
                 out robotStatusDotMaterial
             );
     }
@@ -2203,12 +2183,7 @@ public sealed class G1AgentsWindowView :
                 vehicleRoot,
                 "SLAM VEHICLE",
                 1.15f,
-                new Color32(
-                    255,
-                    196,
-                    80,
-                    255
-                ),
+                HudDashboardTheme.Orange,
                 out vehicleStatusDotMaterial
             );
     }

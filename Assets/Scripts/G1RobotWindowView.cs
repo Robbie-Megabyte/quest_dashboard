@@ -55,6 +55,7 @@ public sealed class G1RobotWindowView :
     private Camera renderCamera;
     private RenderTexture renderTexture;
     private GameObject cameraObject;
+    private GameObject lightRoot;
 
     private Bounds modelLocalBounds;
     private bool hasBounds;
@@ -82,6 +83,8 @@ public sealed class G1RobotWindowView :
         HideRobotFromMainCamera();
         CalculateModelBounds();
         CreateRenderCamera();
+        CreateBalancedLighting();
+        ApplyDashboardControlTheme();
         ResetView();
     }
 
@@ -111,6 +114,9 @@ public sealed class G1RobotWindowView :
 
         if (cameraObject != null)
             Destroy(cameraObject);
+
+        if (lightRoot != null)
+            Destroy(lightRoot);
     }
 
     public void SetInteractionEnabled(bool enabled)
@@ -245,6 +251,37 @@ public sealed class G1RobotWindowView :
         }
     }
 
+    private void ApplyDashboardControlTheme()
+    {
+        if (dragModeLabel == null ||
+            dragModeLabel.transform.parent == null ||
+            dragModeLabel.transform.parent.parent == null)
+        {
+            return;
+        }
+
+        Transform controlsRoot =
+            dragModeLabel.transform.parent.parent;
+
+        foreach (Button button in
+                 controlsRoot.GetComponentsInChildren<Button>(true))
+        {
+            if (button.transform.parent != controlsRoot)
+                continue;
+
+            string buttonName = button.gameObject.name;
+
+            if (buttonName != "RobotDragModeButton" &&
+                buttonName != "ZoomInButton" &&
+                buttonName != "ZoomOutButton")
+            {
+                continue;
+            }
+
+            HudDashboardTheme.StyleDarkGreenButton(button);
+        }
+    }
+
     private void CreateRenderCamera()
     {
         cameraObject =
@@ -274,6 +311,57 @@ public sealed class G1RobotWindowView :
         renderCamera.allowMSAA = true;
 
         UpdateRenderTexture(true);
+    }
+
+    private void CreateBalancedLighting()
+    {
+        if (hudWindow == null || lightRoot != null)
+            return;
+
+        lightRoot =
+            new GameObject("G1_Robot_FillLights");
+
+        lightRoot.hideFlags = HideFlags.DontSave;
+
+        lightRoot.transform.SetParent(
+            hudWindow.transform,
+            false
+        );
+
+        CreateFillLight("FrontLeft", 35.0f, -45.0f);
+        CreateFillLight("FrontRight", 35.0f, 45.0f);
+        CreateFillLight("RearRight", 35.0f, 135.0f);
+        CreateFillLight("RearLeft", 35.0f, -135.0f);
+    }
+
+    private void CreateFillLight(
+        string lightName,
+        float pitchDegrees,
+        float yawDegrees)
+    {
+        GameObject lightObject =
+            new GameObject(lightName);
+
+        lightObject.transform.SetParent(
+            lightRoot.transform,
+            false
+        );
+
+        lightObject.transform.localRotation =
+            Quaternion.Euler(
+                pitchDegrees,
+                yawDegrees,
+                0.0f
+            );
+
+        Light fillLight =
+            lightObject.AddComponent<Light>();
+
+        fillLight.type = LightType.Directional;
+        fillLight.color = Color.white;
+        fillLight.intensity = 0.45f;
+        fillLight.shadows = LightShadows.None;
+        fillLight.cullingMask = 1 << RobotRenderLayer;
     }
 
     private void UpdateRenderTexture(bool force = false)

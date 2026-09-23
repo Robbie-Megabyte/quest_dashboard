@@ -258,6 +258,7 @@ public sealed class G1SlamWindowView :
             targetImage = GetComponent<RawImage>();
 
         panMode = startInPanMode;
+        ApplyDashboardControlTheme();
         UpdateDragModeLabel();
         SetupRuntime();
     }
@@ -1066,6 +1067,37 @@ public sealed class G1SlamWindowView :
     return;
         panMode = enabled;
         UpdateDragModeLabel();
+    }
+
+    private void ApplyDashboardControlTheme()
+    {
+        if (dragModeLabel == null ||
+            dragModeLabel.transform.parent == null ||
+            dragModeLabel.transform.parent.parent == null)
+        {
+            return;
+        }
+
+        Transform controlsRoot =
+            dragModeLabel.transform.parent.parent;
+
+        foreach (Button button in
+                 controlsRoot.GetComponentsInChildren<Button>(true))
+        {
+            if (button.transform.parent != controlsRoot)
+                continue;
+
+            string buttonName = button.gameObject.name;
+
+            if (buttonName != "SlamDragModeButton" &&
+                buttonName != "ZoomInButton" &&
+                buttonName != "ZoomOutButton")
+            {
+                continue;
+            }
+
+            HudDashboardTheme.StyleDarkGreenButton(button);
+        }
     }
 
     private void UpdateDragModeLabel()

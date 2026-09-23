@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
@@ -25,11 +26,12 @@ public sealed class G1QuestTeleopUiController :
     [Header("Placement")]
 
     [Tooltip(
-        "Distance below the HUD grid. This places the " +
-        "teleop button beneath the existing controls."
+        "Angular distance above the HUD grid to the " +
+        "center of the teleop button."
     )]
+    [FormerlySerializedAs("buttonGapBelowGridDegrees")]
     [SerializeField]
-    private float buttonGapBelowGridDegrees = 6f;
+    private float buttonGapAboveGridDegrees = 3f;
 
     [SerializeField]
     private float panelYawDegrees;
@@ -68,12 +70,18 @@ public sealed class G1QuestTeleopUiController :
     private TMP_Text enterLabel;
     private HudCurvedButtonHitTarget enterHold;
     private Button cancelButton;
+    private TMP_Text cancelLabel;
 
     private bool topSubscribed;
     private bool panelWasOpen;
 
     private void Awake()
     {
+        lockedColor = HudDashboardTheme.ControlHover;
+        readyColor = HudDashboardTheme.Green;
+        transitionColor = HudDashboardTheme.Amber;
+        activeColor = HudDashboardTheme.Red;
+
         ResolveReferences();
     }
 
@@ -265,9 +273,9 @@ public sealed class G1QuestTeleopUiController :
             topLabel.initialText =
                 "TELEOP";
 
-            topLabel.fontSize = 28f;
-            topLabel.canvasSizePixels =
-                new Vector2(380f, 96f);
+            topLabel.ConfigureTypography(
+                28f,
+                0.34f);
         }
 
         Transform visual =
@@ -336,7 +344,7 @@ public sealed class G1QuestTeleopUiController :
 
         anchor.Configure(
             gridManager,
-            buttonGapBelowGridDegrees,
+            buttonGapAboveGridDegrees,
             0.03f);
 
         SubscribeTopButton();
@@ -449,7 +457,7 @@ public sealed class G1QuestTeleopUiController :
         window.windowId = "teleop-mode";
         window.windowTitle = "Teleoperation";
         window.SetTitle("Teleoperation");
-        window.SetSizeMeters(0.62f, 0.38f);
+        window.SetSizeMeters(0.66f, 0.46f);
 
         RectTransform content =
             CreateRect(
@@ -464,9 +472,9 @@ public sealed class G1QuestTeleopUiController :
             CreateText(
                 "StatusTitle",
                 content,
-                new Vector2(0f, 0.70f),
+                new Vector2(0f, 0.80f),
                 new Vector2(1f, 1f),
-                34f,
+                28f,
                 FontStyles.Bold,
                 TextAlignmentOptions.Center);
 
@@ -474,9 +482,9 @@ public sealed class G1QuestTeleopUiController :
             CreateText(
                 "StatusDetail",
                 content,
-                new Vector2(0.05f, 0.35f),
-                new Vector2(0.95f, 0.72f),
-                23f,
+                new Vector2(0.05f, 0.40f),
+                new Vector2(0.95f, 0.80f),
+                18f,
                 FontStyles.Normal,
                 TextAlignmentOptions.Center);
 
@@ -484,9 +492,9 @@ public sealed class G1QuestTeleopUiController :
             CreateText(
                 "XrStatus",
                 content,
-                new Vector2(0f, 0.25f),
-                new Vector2(1f, 0.40f),
-                25f,
+                new Vector2(0f, 0.28f),
+                new Vector2(1f, 0.41f),
+                18f,
                 FontStyles.Bold,
                 TextAlignmentOptions.Center);
 
@@ -494,8 +502,8 @@ public sealed class G1QuestTeleopUiController :
             CreateButton(
                 "EnterButton",
                 content,
-                new Vector2(0.08f, 0.02f),
-                new Vector2(0.68f, 0.24f),
+                new Vector2(0.06f, 0.02f),
+                new Vector2(0.68f, 0.26f),
                 readyColor,
                 out enterLabel,
                 out enterHold);
@@ -506,7 +514,6 @@ public sealed class G1QuestTeleopUiController :
 
         enterHold.ConfigureHoldDuration(1f);
 
-        TMP_Text cancelLabel;
         HudCurvedButtonHitTarget cancelHit;
 
         cancelButton =
@@ -514,7 +521,7 @@ public sealed class G1QuestTeleopUiController :
                 "CancelButton",
                 content,
                 new Vector2(0.72f, 0.02f),
-                new Vector2(0.94f, 0.24f),
+                new Vector2(0.96f, 0.26f),
                 lockedColor,
                 out cancelLabel,
                 out cancelHit);
@@ -734,7 +741,7 @@ public sealed class G1QuestTeleopUiController :
                 .ModeState.Fault:
 
                 color = activeColor;
-                label = "SAFETY HOLD";
+                label = "FAULT\nARMS HELD";
                 break;
         }
 
@@ -795,6 +802,10 @@ public sealed class G1QuestTeleopUiController :
             panelWasOpen = true;
         }
 
+        bool faultMode =
+            coordinator.State ==
+            G1QuestTeleopModeCoordinator.ModeState.Fault;
+
         if (panelTitle != null)
             panelTitle.text = coordinator.StatusTitle;
 
@@ -803,19 +814,31 @@ public sealed class G1QuestTeleopUiController :
 
         if (panelXr != null)
         {
-            panelXr.text =
-                coordinator.XrStatusLabel;
+            panelXr.text = faultMode
+                ? "RELEASE MAY MOVE ARMS · FINGERS WILL OPEN"
+                : coordinator.XrStatusLabel;
 
-            panelXr.color =
-                coordinator.XrStatusLabel == "XR OK"
+            panelXr.color = faultMode
+                ? transitionColor
+                : coordinator.XrStatusLabel == "XR OK"
                     ? readyColor
                     : activeColor;
         }
 
+        bool primaryActionAvailable = faultMode
+            ? coordinator.CanReleaseFaultHold
+            : coordinator.CanConfirmEntry;
+
         if (enterButton != null)
         {
+            SetButtonColor(
+                enterButton,
+                faultMode
+                    ? transitionColor
+                    : readyColor);
+
             enterButton.interactable =
-                coordinator.CanConfirmEntry;
+                primaryActionAvailable;
         }
 
         if (enterLabel != null)
@@ -827,19 +850,33 @@ public sealed class G1QuestTeleopUiController :
 
             if (progress > 0f)
             {
-                enterLabel.text =
-                    "HOLD ENTER · " +
-                    Mathf.RoundToInt(
-                        progress * 100f) +
-                    "%";
+                enterLabel.text = faultMode
+                    ? "HOLD RELEASE · " +
+                        Mathf.RoundToInt(
+                            progress * 100f) +
+                        "%"
+                    : "HOLD ENTER · " +
+                        Mathf.RoundToInt(
+                            progress * 100f) +
+                        "%";
             }
             else
             {
-                enterLabel.text =
-                    coordinator.CanConfirmEntry
+                enterLabel.text = faultMode
+                    ? primaryActionAvailable
+                        ? "HOLD RELEASE · 1s"
+                        : "RELEASE LOCKED"
+                    : primaryActionAvailable
                         ? "HOLD ENTER · 1s"
                         : "ENTRY LOCKED";
             }
+        }
+
+        if (cancelLabel != null)
+        {
+            cancelLabel.text = faultMode
+                ? "KEEP HELD"
+                : "CANCEL";
         }
     }
 
@@ -899,7 +936,7 @@ public sealed class G1QuestTeleopUiController :
         text.fontSize = fontSize;
         text.fontStyle = style;
         text.alignment = alignment;
-        text.color = Color.white;
+        text.color = HudDashboardTheme.TextPrimary;
         text.enableWordWrapping = true;
         text.raycastTarget = false;
         text.text = string.Empty;
@@ -946,16 +983,14 @@ public sealed class G1QuestTeleopUiController :
         ColorBlock colors = button.colors;
         colors.normalColor = color;
         colors.highlightedColor =
-            Color.Lerp(color, Color.white, 0.18f);
+            Color.Lerp(color, HudDashboardTheme.TextPrimary, 0.18f);
         colors.pressedColor =
-            Color.Lerp(color, Color.black, 0.18f);
+            Color.Lerp(color, HudDashboardTheme.Background, 0.18f);
         colors.selectedColor =
             colors.highlightedColor;
         colors.disabledColor =
-            new Color(
-                0.30f,
-                0.31f,
-                0.34f,
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Control,
                 0.70f);
         button.colors = colors;
 
@@ -974,6 +1009,34 @@ public sealed class G1QuestTeleopUiController :
                 HudCurvedButtonHitTarget>();
 
         return button;
+    }
+
+    private static void SetButtonColor(
+        Button button,
+        Color color)
+    {
+        if (button == null)
+            return;
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = color;
+        colors.highlightedColor =
+            Color.Lerp(
+                color,
+                HudDashboardTheme.TextPrimary,
+                0.18f);
+        colors.pressedColor =
+            Color.Lerp(
+                color,
+                HudDashboardTheme.Background,
+                0.18f);
+        colors.selectedColor =
+            colors.highlightedColor;
+        colors.disabledColor =
+            HudDashboardTheme.WithAlpha(
+                HudDashboardTheme.Control,
+                0.70f);
+        button.colors = colors;
     }
 
     private static void SetRendererColor(
